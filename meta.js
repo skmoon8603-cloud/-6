@@ -96,6 +96,28 @@
       default: break;
     }
   };
+  /** 골 노래 "티키 퐁크": 원본 음원은 쓸 수 없어서 직접 만든 효과음 + 음성 합성으로 부른다.
+   *  /goal.mp3 파일을 올려두면 그 파일을 대신 재생한다. */
+  let goalFile = null; // null: 확인 전, false: 없음, Audio: 있음
+  fetch('/goal.mp3', { method: 'HEAD' }).then((r) => { goalFile = r.ok && /audio|mpeg|octet/.test(r.headers.get('content-type') || '') ? new Audio('/goal.mp3') : false; }).catch(() => { goalFile = false; });
+  RF.goalSong = () => {
+    if (muted) return;
+    if (goalFile) { try { goalFile.currentTime = 0; goalFile.volume = 0.9; goalFile.play(); setTimeout(() => { try { goalFile.pause(); } catch (e) { /* noop */ } }, 9000); return; } catch (e) { /* 합성음으로 */ } }
+    const B = 0.27; // 한 박자
+    const mel = [[1319, 1568, 330], [1175, 1480, 294], [1319, 1568, 330], [1568, 1760, 392]]; // 티·키 두 음 + 퐁 음높이
+    for (let r = 0; r < 4; r++) {
+      const t = r * B * 4;
+      tone(mel[r][0], 0.09, 'square', 0.07, t); tone(mel[r][1], 0.09, 'square', 0.07, t + B * 0.5); // 티-키
+      tone(mel[r][2] * 1.6, 0.22, 'sine', 0.2, t + B * 1.5, mel[r][2] * 0.5); // 퐁 (뿅 내려가는 소리)
+      noise(0.05, 0.12, 2500, t + B * 3); tone(900, 0.05, 'square', 0.05, t + B * 3); // 크
+    }
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, 'triangle', 0.12, 4 * B * 4 + i * 0.09));
+    try { // 가사 부분 (브라우저 음성 합성; 한국어 음성이 없는 기기에서는 효과음만 나옵니다)
+      const ss = window.speechSynthesis; if (!ss) return;
+      ss.cancel(); const u = new SpeechSynthesisUtterance('티키 퐁크! 티키 퐁크! 티키 퐁크!');
+      u.lang = 'ko-KR'; u.rate = 1.25; u.pitch = 1.7; u.volume = 0.8; ss.speak(u);
+    } catch (e) { /* noop */ }
+  };
   RF.isMuted = () => muted;
   RF.setMuted = (m) => { muted = !!m; LS.set('mute', muted); };
   document.addEventListener('pointerdown', () => ctx(), { once: true, passive: true });

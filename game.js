@@ -186,7 +186,7 @@
   });
 
   function startMatchUI(info) {
-    mInfo = info; side = info.side; inMatch = true; snaps.length = 0; lastPhase = ''; lastCount = 0;
+    mInfo = info; side = info.side; inMatch = true; snaps.length = 0; replay = null; lastPhase = ''; lastCount = 0;
     RF.closeModal(); $('reveal').classList.add('hidden');
     $('scr-match').classList.remove('hidden'); $('resultPanel').classList.add('hidden'); $('menuPanel').classList.add('hidden'); $('goalfx').classList.add('hidden');
     banner('');
@@ -200,7 +200,7 @@
     RF.sfx('tap');
   }
   function endMatchUI() {
-    inMatch = false; $('scr-match').classList.add('hidden'); $('rotate').classList.add('hidden');
+    inMatch = false; stopReplay(); $('scr-match').classList.add('hidden'); $('rotate').classList.add('hidden');
     try { if (wake) wake.release(); } catch (e) { /* noop */ } wake = null;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* noop */ }
     releaseAll();
@@ -237,19 +237,19 @@
   // ───────────── 스냅샷 / 이벤트 ─────────────
   function onSnap(s) {
     snaps.push({ k: s.k, t: performance.now(), s });
-    if (snaps.length > 40) snaps.shift();
+    if (snaps.length > 120) snaps.shift(); // 골 장면 다시보기용으로 약 4초 분량 보관
   }
   function onEvents(evs) {
     if (!inMatch) return;
     const st = snaps.length ? snaps[snaps.length - 1].s : null;
     for (const e of evs) {
       if (e.type === 'goal') {
-        RF.sfx('goal'); R.goalFx(e.side);
+        RF.sfx('goal'); RF.goalSong && RF.goalSong(); R.goalFx(e.side); startReplay();
         const mine = e.side === side;
         const sc = side === 0 ? e.score : [e.score[1], e.score[0]];
         $('scL').textContent = sc[0]; $('scR').textContent = sc[1];
         const g = $('goalfx'); g.innerHTML = `<div><div class="g">GOAL!</div><div class="s">${mine ? '⚽ 우리 팀 득점' : '😵 상대 팀 득점'} · ${e.by ? '#' + e.num + ' ' + esc(e.by) : ''}${e.own ? ' (자책골)' : ''} · ${sc[0]} : ${sc[1]}</div></div>`;
-        g.classList.remove('hidden'); clearTimeout(g._t); g._t = setTimeout(() => g.classList.add('hidden'), 2600);
+        g.classList.remove('hidden'); clearTimeout(g._t); g._t = setTimeout(() => g.classList.add('hidden'), 1150);
         if (navigator.vibrate) navigator.vibrate(mine ? [60, 40, 120] : 80);
       } else if (e.type === 'kick') {
         if (st) R.kickFx(st.b[0], st.b[1], e.pw); RF.sfx('kick', e.pw);
@@ -265,23 +265,47 @@
     const n = snaps.length; if (!n) return null;
     const last = snaps[n - 1];
     const est = last.k + (now - last.t) / (1000 / 60);
-    const target = est - 7;
-    let a = snaps[0], b = null;
-    for (let i = n - 1; i >= 0; i--) if (snaps[i].k <= target) { a = snaps[i]; b = snaps[i + 1] || null; break; }
+    return mixAt(snaps, est - 7, last.s);
+  }
+  /** arr(스냅샷 배열)에서 틱 target 위치의 장면을 보간해 만든다 */
+  function mixAt(arr, target, cur) {
+    const n = arr.length, last = arr[n - 1];
+    let a = arr[0], b = null;
+    for (let i = n - 1; i >= 0; i--) if (arr[i].k <= target) { a = arr[i]; b = arr[i + 1] || null; break; }
     const A = a.s;
-    if (!b || b.k === a.k) return { cur: last.s, b: A.b.slice(), p: A.p.map((q) => [q[0], q[1], q[2], q[3], q[4], 0, 0]), c: last.s.c };
+    if (!b || b.k === a.k) return { cur, b: A.b.slice(), p: A.p.map((q) => [q[0], q[1], q[2], q[3], q[4], 0, 0]), c: last.s.c };
     const B = b.s, dk = b.k - a.k, f = Math.max(0, Math.min(1, (target - a.k) / dk)), sec = dk / 60;
     return {
-      cur: last.s, c: B.c,
+      cur, c: B.c,
       b: [A.b[0] + (B.b[0] - A.b[0]) * f, A.b[1] + (B.b[1] - A.b[1]) * f, A.b[2] + (B.b[2] - A.b[2]) * f, A.b[3] + (B.b[3] - A.b[3]) * f],
       p: A.p.map((q, i) => { const r = B.p[i]; return [q[0] + (r[0] - q[0]) * f, q[1] + (r[1] - q[1]) * f, angLerp(q[2], r[2], f), r[3], q[4] | r[4], (r[0] - q[0]) / sec, (r[1] - q[1]) / sec]; }),
     };
+  }
+  // ───────────── 골 장면 다시보기 (슬로모션) ─────────────
+  let replay = null; const REPLAY_TICKS = 144, REPLAY_DELAY = 1200;
+  function startReplay() {
+    const n = snaps.length; if (n < 20) return;
+    const frames = snaps.slice(Math.max(0, n - Math.ceil(REPLAY_TICKS / 2) - 1));
+    replay = { frames, k: frames[0].k, kEnd: frames[frames.length - 1].k, at: performance.now() + REPLAY_DELAY, last: 0, on: false };
+  }
+  function stopReplay() { replay = null; const t = $('replayTag'); if (t) t.classList.add('hidden'); $('scr-match').classList.remove('replaying'); }
+  function replayFrame(now, live) {
+    if (!replay) return live;
+    if (now < replay.at) return live;
+    if (live.cur.ph === 'play' || live.cur.ph === 'ended') { stopReplay(); return live; }
+    if (!replay.on) { replay.on = true; replay.last = now; $('replayTag').classList.remove('hidden'); $('scr-match').classList.add('replaying'); }
+    const dt = Math.min(0.05, (now - replay.last) / 1000); replay.last = now;
+    const remain = replay.kEnd - replay.k;
+    replay.k += dt * 60 * (remain < 36 ? 0.45 : 0.9); // 마지막 순간은 더 느리게
+    if (replay.k >= replay.kEnd + 20) { stopReplay(); return live; }
+    return mixAt(replay.frames, Math.min(replay.k, replay.kEnd), live.cur);
   }
   let lastTm = -1;
   function loop(now) {
     requestAnimationFrame(loop);
     if (!inMatch) return;
-    const f = interp(now); if (!f) return;
+    let f = interp(now); if (!f) return;
+    f = replayFrame(now, f);
     R.frame(f, now);
     const s = f.cur;
     // 스코어/시간

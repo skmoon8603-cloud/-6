@@ -60,6 +60,7 @@ if (fs.existsSync(path.join(PUB, 'index.html'))) {
   const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js'];
   app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
+  if (fs.existsSync(path.join(__dirname, 'goal.mp3'))) app.get('/goal.mp3', (_req, res) => res.sendFile(path.join(__dirname, 'goal.mp3'))); // 골 노래 음원(선택)
 }
 
 const server = http.createServer(app);
