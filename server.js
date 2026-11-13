@@ -65,6 +65,10 @@ const io = new Server(server, {
   await store.init();
   const n = await accounts.refundAllLocked();
   if (n) console.log('[내기] 서버 재시작으로 중단된 내기 환급:', n);
+  try { // 운영자 요청: 닉네임 skmoon 계정에 모든 캐릭터 1장씩 (1회성)
+    const g = await accounts.grantAllByNick('skmoon');
+    console.log('[지급] skmoon:', g.ok ? (g.already ? '이미 지급됨' : '모든 캐릭터 지급 완료') : `실패 (일치하는 계정 ${g.found}개)`);
+  } catch (e) { console.error('[지급] 오류', e.message); }
   game = net.attach(io, { accounts, auth });
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
 })().catch((e) => { console.error('시작 실패', e); process.exit(1); });

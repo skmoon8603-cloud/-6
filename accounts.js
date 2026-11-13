@@ -143,6 +143,21 @@ class Accounts {
     });
   }
 
+  /** 운영자 요청 1회성 지급: 닉네임이 정확히 일치하는 계정이 '한 개'일 때만, 모든 캐릭터를 1장(Lv.1)씩 지급. (이미 지급했으면 건너뜀) */
+  async grantAllByNick(nick) {
+    nick = String(nick).toLowerCase();
+    const ids = await this.store.findByNick(nick);
+    if (ids.length !== 1) return { ok: false, found: ids.length };
+    const id = ids[0];
+    return this.store.txn([id], (m) => {
+      const a = m[id]; if (!a) return { ok: false, found: 0 };
+      if (a.grantedAll) return { ok: true, already: true, id };
+      for (const p of C.CATALOG) if (!p.starter && !(a.inv[p.id] > 0)) a.inv[p.id] = 1;
+      a.grantedAll = true;
+      return { ok: true, id };
+    });
+  }
+
   /** 서버 시작 시: 재시작으로 끊긴 내기를 모두 환급 (방이 메모리에만 있으므로) */
   async refundAllLocked() {
     let n = 0;

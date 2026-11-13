@@ -23,6 +23,7 @@ class MemoryStore {
     this.lock = p.catch(() => {});
     return p;
   }
+  async findByNick(nick) { return [...this.acc.values()].filter((a) => String(a.nick || '').toLowerCase() === nick).map((a) => a.id); }
   async listLocked() { return [...this.acc.values()].filter((a) => a.locked).map((a) => a.id); }
   async close() { /* noop */ }
 }
@@ -62,6 +63,10 @@ class PgStore {
       try { await c.query('rollback'); } catch (x) { /* noop */ }
       throw e;
     } finally { c.release(); }
+  }
+  async findByNick(nick) {
+    const r = await this.pool.query("select id from accounts where lower(data->>'nick') = $1", [nick]);
+    return r.rows.map((x) => x.id);
   }
   async listLocked() {
     const r = await this.pool.query("select id from accounts where data->'locked' is not null and data->>'locked' <> 'null'");
