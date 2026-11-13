@@ -419,7 +419,12 @@
       const b = $('devLogin'); b.classList.remove('hidden');
       b.onclick = () => doLogin('dev:' + ($('devName').value || 'tester'));
     }
-    if (!cfg.googleClientId) { if (!cfg.devLogin) $('loginMsg').textContent = '서버에 구글 로그인이 아직 설정되지 않았어요 (관리자: GOOGLE_CLIENT_ID 필요)'; return; }
+    if (cfg.github) {
+      const g = $('ghbtn'); g.classList.remove('hidden');
+      g.onclick = () => { location.href = '/auth/github' + (LS.get('token', '') ? '?legacy=' + encodeURIComponent(LS.get('token', '')) : ''); };
+      $('loginMsg').textContent = '';
+    }
+    if (!cfg.googleClientId) { if (!cfg.devLogin && !cfg.github) $('loginMsg').textContent = '서버에 구글 로그인이 아직 설정되지 않았어요 (관리자: GITHUB_CLIENT_ID/SECRET 필요)'; return; }
     try {
       await loadGsi();
       google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: (resp) => doLogin(resp.credential), ux_mode: 'popup' });
@@ -428,6 +433,11 @@
     } catch (e) { $('loginMsg').textContent = e.message; }
   }
   async function bootAuth() {
+    try { // 깃허브 로그인 후 돌아온 주소(#auth=...)에서 세션 받기
+      const h = new URLSearchParams(location.hash.slice(1));
+      if (h.get('auth')) { S.auth = h.get('auth'); LS.set('auth', S.auth); LS.del('token'); history.replaceState(null, '', location.pathname); }
+      else if (h.get('autherr')) { history.replaceState(null, '', location.pathname); RF.toast('로그인에 실패했어요. 다시 시도해주세요', true); }
+    } catch (e) { /* noop */ }
     if (S.auth) {
       try {
         const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + S.auth } });

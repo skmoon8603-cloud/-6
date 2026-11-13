@@ -53,4 +53,31 @@ async function verifyGoogle(credential) {
   } catch (e) { console.error('[auth] google verify failed:', e.message); return null; }
 }
 
-module.exports = { signSession, verifySession, verifyGoogle, GOOGLE_CLIENT_ID, DEV_LOGIN };
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
+const GITHUB = !!(GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET);
+const hsig = (p) => crypto.createHmac('sha256', SECRET).update('gh:' + p).digest('base64url');
+/** OAuth state: 무작위 값 + 만료, 서명 (쿠키와 대조해 CSRF 방지) */
+function newState() { const p = crypto.randomBytes(16).toString('base64url') + '.' + (Date.now() + 10 * 60000); return p + '.' + hsig(p); }
+function okState(st) {
+  if (typeof st !== 'string') return false;
+  const i = st.lastIndexOf('.'); if (i < 1 || !eq(st.slice(i + 1), hsig(st.slice(0, i)))) return false;
+  return Number(st.slice(0, i).split('.')[1]) > Date.now();
+}
+function githubUrl(state, redirect) {
+  return 'https://github.com/login/oauth/authorize?' + new URLSearchParams({ client_id: GITHUB_CLIENT_ID, redirect_uri: redirect, scope: 'read:user', state, allow_signup: 'true' });
+}
+/** 깃허브 인증 코드 → { sub, email, name } | null */
+async function githubProfile(code, redirect) {
+  if (!GITHUB || typeof code !== 'string' || code.length > 200) return null;
+  try {
+    const t = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: GITHUB_CLIENT_ID, client_secret: GITHUB_CLIENT_SECRET, code, redirect_uri: redirect }), signal: AbortSignal.timeout(8000) });
+    const tj = await t.json(); if (!tj.access_token) return null;
+    const u = await fetch('https://api.github.com/user', { headers: { Authorization: 'Bearer ' + tj.access_token, 'User-Agent': 'random-football', Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(8000) });
+    if (!u.ok) return null; const j = await u.json();
+    if (!j.id || !j.login) return null;
+    return { sub: 'gh-' + j.id, email: j.login, name: j.login };
+  } catch (e) { console.error('[auth] github failed:', e.message); return null; }
+}
+
+module.exports = { newState, okState, githubUrl, githubProfile, GITHUB, signSession, verifySession, verifyGoogle, GOOGLE_CLIENT_ID, DEV_LOGIN };

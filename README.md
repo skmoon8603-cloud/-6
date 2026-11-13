@@ -87,7 +87,8 @@ npm start        # http://localhost:3000
 ### 환경 변수 (Render → Environment)
 | 이름 | 설명 |
 |---|---|
-| GOOGLE_CLIENT_ID | 구글 OAuth 웹 클라이언트 ID |
+| GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET | GitHub OAuth App (콜백: `<주소>/auth/github/callback`) |
+| GOOGLE_CLIENT_ID | (선택) 구글 OAuth 웹 클라이언트 ID |
 | DATABASE_URL | PostgreSQL 연결 문자열 (Neon 무료 등). 없으면 메모리 저장(재시작 시 초기화) |
 | SESSION_SECRET | 세션 서명 키 (render.yaml이 자동 생성) |
 | DEV_LOGIN | 테스트 전용. 운영에서는 절대 켜지 마세요 |

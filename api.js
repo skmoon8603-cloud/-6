@@ -38,8 +38,30 @@ function create({ accounts, auth }) {
     return fn(req, uid);
   });
 
+  const cookie = (req, k) => { const m = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(k + '=')); return m ? decodeURIComponent(m.slice(k.length + 1)) : ''; };
+  const redirectUri = (req) => `${req.protocol}://${req.get('host')}/auth/github/callback`;
   return {
-    config: (_req, res) => res.json({ googleClientId: auth.GOOGLE_CLIENT_ID, devLogin: auth.DEV_LOGIN }),
+    githubStart: (req, res) => {
+      if (!auth.GITHUB) return res.status(503).send('GitHub login is not configured');
+      if (limited('g:' + req.ip, 20, 60000)) return res.status(429).send('too many requests');
+      const st = auth.newState(); const legacy = String(req.query.legacy || '').slice(0, 2000);
+      const opt = `; Max-Age=600; Path=/; HttpOnly; SameSite=Lax${req.secure ? '; Secure' : ''}`;
+      res.setHeader('Set-Cookie', [`rf_st=${st}${opt}`, `rf_lg=${encodeURIComponent(legacy)}${opt}`]);
+      res.redirect(auth.githubUrl(st, redirectUri(req)));
+    },
+    githubCallback: async (req, res) => {
+      try {
+        const st = String(req.query.state || '');
+        if (!st || st !== cookie(req, 'rf_st') || !auth.okState(st)) return res.redirect('/#autherr=state');
+        const prof = await auth.githubProfile(String(req.query.code || ''), redirectUri(req));
+        if (!prof) return res.redirect('/#autherr=github');
+        const legacy = cookie(req, 'rf_lg') || null;
+        const acct = await accounts.login(prof, legacy);
+        res.setHeader('Set-Cookie', ['rf_st=; Max-Age=0; Path=/', 'rf_lg=; Max-Age=0; Path=/']);
+        res.redirect('/#auth=' + encodeURIComponent(auth.signSession(acct.id)));
+      } catch (e) { console.error('[api]', e); res.redirect('/#autherr=server'); }
+    },
+    config: (_req, res) => res.json({ googleClientId: auth.GOOGLE_CLIENT_ID, github: auth.GITHUB, devLogin: auth.DEV_LOGIN }),
     login: wrap(async (req) => {
       if (limited('l:' + req.ip, 10, 60000)) return { status: 429, body: { error: 'too_many_requests' } };
       const b = req.body || {};
