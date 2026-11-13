@@ -98,8 +98,17 @@
   };
   /** 골 확정 리플레이 음악: 질주하는 펑크 리프 (디스토션 기타 + 베이스 + 드럼, 150BPM, 약 5초).
    *  /goal.mp3 파일을 올려두면 그 파일을 대신 재생한다. 반환값: 박자 길이(초) — 화면 지진을 박자에 맞추는 데 쓴다. */
-  let goalFile = null; // null: 확인 전, false: 없음, Audio: 있음
-  fetch('/api/version', { cache: 'no-store' }).then((r) => r.json()).then((j) => { goalFile = j && j.goal ? new Audio('/goal.mp3') : false; }).catch(() => { goalFile = false; });
+  // 골 리플레이 음악 3곡(phonk): 골마다 랜덤. hits = 킥(쿵) 타이밍(초) — 화면 지진을 실제 음악 박자에 맞추는 데 쓴다.
+  const GOAL_TRACKS = [
+    { n: 1, hits: [0.07, 0.55, 1.03, 1.26, 1.51, 1.74, 1.99, 2.47, 2.94, 3.42, 3.9, 4.38, 4.62, 4.86, 5.07, 5.34, 5.55, 5.81, 6.29, 6.77, 7.0, 7.73, 8.21, 8.68] },
+    { n: 2, hits: [0.06, 0.47, 0.69, 1.13, 1.75, 2.0, 2.45, 2.66, 3.3, 3.67, 3.91, 4.17, 4.54, 4.96, 5.53, 5.74, 5.94, 6.28, 6.7, 6.99, 7.53, 7.77, 8.24] },
+    { n: 3, hits: [4.94, 5.16, 5.36, 5.56, 5.77, 5.99, 6.2, 6.41, 6.78, 6.98, 7.39, 7.66, 7.86, 8.16, 8.62] },
+  ];
+  let curAudio = null;
+  let goalAudio = null, lastTrack = -1, curHits = null; // goalAudio: null 확인 전 / [] 없음 / Audio 목록
+  fetch('/api/version', { cache: 'no-store' }).then((r) => r.json()).then((j) => {
+    goalAudio = ((j && j.goals) || []).map((n) => { const a = new Audio('/goal' + n + '.mp3'); a.preload = 'auto'; return { a, t: GOAL_TRACKS.find((x) => x.n === n) }; });
+  }).catch(() => { goalAudio = []; });
   const distCurve = (() => { const n = 256, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * 7); } return c; })();
   function guitar(freqs, d, vol, t0) { // 디스토션 파워코드
     const c = ctx(); if (!c || muted) return;
@@ -114,9 +123,21 @@
   function snare(t0, v = 0.3) { noise(0.16, v, 5200, t0); tone(200, 0.09, 'triangle', 0.18, t0, 120); }
   function hat(t0, v = 0.06) { noise(0.03, v, 9000, t0); }
   function crash(t0, v = 0.25) { noise(1.4, v, 7500, t0); tone(5200, 0.5, 'square', 0.02, t0); }
+  /** 리플레이 시작 때 호출: 음악 3곡 중 랜덤 재생 (직전과 다른 곡). 반환값: 박자 길이(초) 또는 0. 곡이 없으면 합성 펑크로 대신한다. */
+  RF.goalHits = () => curHits;
+  /** 리플레이가 끝나면 음악을 부드럽게 줄이며 멈춘다 */
+  RF.goalStop = () => {
+    const a = curAudio; if (!a || a.paused) return; curAudio = null;
+    let v = a.volume; const iv = setInterval(() => { v -= 0.12; if (v <= 0.02) { clearInterval(iv); try { a.pause(); a.volume = 0.95; } catch (e) { /* noop */ } } else { try { a.volume = v; } catch (e) { clearInterval(iv); } } }, 40);
+  };
   RF.goalSong = () => {
     if (muted) return 0;
-    if (goalFile) { try { goalFile.currentTime = 0; goalFile.volume = 0.9; goalFile.play(); setTimeout(() => { try { goalFile.pause(); } catch (e) { /* noop */ } }, 9000); return 0.4; } catch (e) { /* 합성음으로 */ } }
+    curHits = null;
+    if (goalAudio && goalAudio.length) {
+      let i = Math.floor(Math.random() * goalAudio.length); if (goalAudio.length > 1 && i === lastTrack) i = (i + 1) % goalAudio.length;
+      lastTrack = i; const { a, t } = goalAudio[i]; curAudio = a;
+      try { a.currentTime = 0; a.volume = 0.95; const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); curHits = t.hits; setTimeout(() => { try { a.pause(); } catch (e) { /* noop */ } }, 9500); return 0.4; } catch (e) { /* 합성음으로 */ }
+    }
     const BEAT = 0.4, E = BEAT / 2; // 150BPM, 8분음표 = 0.2초
     const root = [82.41, 82.41, 110, 123.47];        // 마디별 뿌리음 E E A B
     const pw = (r) => [r * 2, r * 3, r * 4];          // 파워코드(1·5·8도)

@@ -12,7 +12,7 @@ module.exports = {
   SNAP_EVERY: 2,    // 2틱마다 스냅샷 전송 (30Hz)
   MATCH_SECONDS: Number(process.env.MATCH_SECONDS) || 180,
   COUNTDOWN: 3,
-  GOAL_PAUSE: 6.4,  // 골 세레모니 + 슬로모션 확정 리플레이(약 5초) 시간
+  GOAL_PAUSE: 7.6,  // 골 세레모니 + 슬로모션 확정 리플레이(약 6초) 시간
   BALL_FRICTION: 0.85,   // 지수 감쇠 계수 (1/s)
   TEAM_SIZE: 6,
   PLAYER_SPEED_SCALE: 0.6, // 모든 선수 이동 속도 배율 (1.0 = 이전 속도) — 단순/느리게

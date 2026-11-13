@@ -111,7 +111,7 @@ const bal = async (u) => (await accounts.get(u.id)).bal;
   const rj = await B2.send('room:rejoin', { code: r1.code });
   assert(rj.ok && rj.side === 1 && B2.got('match:start').length === 1); ok('같은 계정으로 재접속 → 경기 복귀');
   assert.strictEqual(await bal(uB), 15000); ok('재접속해도 판돈은 이중 차감되지 않음');
-  run(60 * 8); assert(m.timeLeft < tBefore); ok("재접속 후 경기 재개");
+  run(60 * 12); assert(m.timeLeft < tBefore); ok("재접속 후 경기 재개");
 
   // 6. 끊김 유예 초과 → 몰수승 + 판돈 전액 승자에게
   A.clear(); B2.drop(); await sleep(350); await game.sweep(); await flush();

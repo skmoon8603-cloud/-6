@@ -55,7 +55,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/socket.io/socket.io.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(SHIM); }
   if (url.pathname === '/__test/ver') { global.__VER = url.searchParams.get('v'); res.writeHead(200); return res.end('ok'); }
-  if (url.pathname === '/api/version') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ v: global.__VER || 'dev' })); }
+  if (url.pathname === '/api/version') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ v: global.__VER || 'dev', goals: [1, 2, 3].filter((i) => fs.existsSync(path.join(PUB, 'goal' + i + '.mp3'))) })); }
   if (url.pathname === '/api/catalog') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(api.catalogPayload())); }
   const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend, '/api/players': A.players, '/api/admin/money': A.adminMoney, '/api/admin/delete': A.adminDelete };
   if (routes[url.pathname]) {

@@ -50,7 +50,7 @@ app.post('/api/attend', A.attend);
 app.get('/api/players', A.players);
 app.post('/api/admin/money', A.adminMoney);
 app.post('/api/admin/delete', A.adminDelete);
-app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION, goal: ['goal.mp3', 'public/goal.mp3'].some((f) => fs.existsSync(path.join(__dirname, f))) }); });
+app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION, goals: [1, 2, 3].filter((i) => ['goal' + i + '.mp3', 'public/goal' + i + '.mp3'].some((f) => fs.existsSync(path.join(__dirname, f)))) }); });
 
 const PUB = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUB, 'index.html'))) {
@@ -60,7 +60,7 @@ if (fs.existsSync(path.join(PUB, 'index.html'))) {
   const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js'];
   app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
-  if (fs.existsSync(path.join(__dirname, 'goal.mp3'))) app.get('/goal.mp3', (_req, res) => res.sendFile(path.join(__dirname, 'goal.mp3'))); // 골 노래 음원(선택)
+  for (const i of [1, 2, 3]) if (fs.existsSync(path.join(__dirname, `goal${i}.mp3`))) app.get(`/goal${i}.mp3`, (_req, res) => res.sendFile(path.join(__dirname, `goal${i}.mp3`))); // 골 리플레이 음악 3곡
 }
 
 const server = http.createServer(app);

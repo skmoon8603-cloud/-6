@@ -282,26 +282,31 @@
     };
   }
   // ───────────── 골 장면 다시보기 (슬로모션) ─────────────
-  let replay = null; const REPLAY_TICKS = 120, REPLAY_DELAY = 900;
+  let replay = null; const REPLAY_TICKS = 105, REPLAY_DELAY = 900, REPLAY_SPEED = 0.3; // 0.3배속 슬로모션
+  const FACES = ['💀', '🥵', '🤫'];
   function startReplay() {
     const n = snaps.length; if (n < 20) return;
     const frames = snaps.slice(Math.max(0, n - Math.ceil(REPLAY_TICKS / 2) - 1));
     replay = { frames, k: frames[0].k, kEnd: frames[frames.length - 1].k, at: performance.now() + REPLAY_DELAY, last: 0, on: false, t0: 0, beat: 0.4 };
   }
-  function stopReplay() { replay = null; const t = $('replayTag'); if (t) t.classList.add('hidden'); const m = $('scr-match'); m.classList.remove('replaying'); m.style.transform = ''; }
+  function stopReplay() { if (replay && replay.on && RF.goalStop) RF.goalStop(); replay = null; const t = $('replayTag'); if (t) t.classList.add('hidden'); const m = $('scr-match'); m.classList.remove('replaying'); m.style.transform = ''; }
   function replayFrame(now, live) {
     if (!replay) return live;
     if (now < replay.at) return live;
     if (live.cur.ph === 'play' || live.cur.ph === 'ended') { stopReplay(); return live; }
-    if (!replay.on) { replay.on = true; replay.last = now; replay.t0 = now; replay.beat = RF.goalSong ? (RF.goalSong() || 0.4) : 0.4; $('replayTag').classList.remove('hidden'); $('scr-match').classList.add('replaying'); }
+    if (!replay.on) { replay.on = true; replay.last = now; replay.t0 = now; replay.beat = RF.goalSong ? (RF.goalSong() || 0.4) : 0.4; $('replayFace').textContent = FACES[Math.floor(Math.random() * FACES.length)]; $('replayTag').classList.remove('hidden'); $('scr-match').classList.add('replaying'); }
     const dt = Math.min(0.05, (now - replay.last) / 1000); replay.last = now;
     const remain = replay.kEnd - replay.k;
-    replay.k += dt * 60 * (remain < 30 ? 0.25 : 0.5); // 슬로모션 (마지막 순간은 더 느리게)
+    replay.k += dt * 60 * REPLAY_SPEED;
     // 화면 지진: 계속 흔들리고, 음악 박자(킥)마다 크게 쿵! 하고 흔들린다
-    const el = (now - replay.t0) / 1000, ph = (el % replay.beat) / replay.beat, pulse = Math.exp(-ph * 7), amp = 5 + 16 * pulse;
+    const el = (now - replay.t0) / 1000, hits = RF.goalHits && RF.goalHits();
+    let pulse;
+    if (hits && hits.length) { let since = 9; for (const h of hits) if (el >= h && el - h < since) since = el - h; pulse = Math.exp(-since * 9); } // 실제 음악의 킥 타이밍에 맞춰 쿵!
+    else { const ph = (el % replay.beat) / replay.beat; pulse = Math.exp(-ph * 7); }
+    const amp = 5 + 16 * pulse;
     const sx = (Math.random() - 0.5) * 2 * amp, sy = (Math.random() - 0.5) * 2 * amp, rot = (Math.random() - 0.5) * 0.012 * (1 + pulse * 2);
     $('scr-match').style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px) rotate(${rot.toFixed(4)}rad) scale(1.04)`;
-    if (replay.k >= replay.kEnd + 20) { stopReplay(); return live; }
+    if (replay.k >= replay.kEnd + 6) { stopReplay(); return live; }
     return mixAt(replay.frames, Math.min(replay.k, replay.kEnd), live.cur);
   }
   let lastTm = -1;
