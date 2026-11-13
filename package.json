@@ -1,0 +1,19 @@
+{
+  "name": "random-football",
+  "version": "1.0.0",
+  "description": "RANDOM FOOTBALL - 모바일 웹 2D 축구 게임 (Node.js + Express + Socket.IO)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/sim.js 6 180 && node test/net.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "license": "MIT"
+}
