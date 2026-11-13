@@ -54,7 +54,7 @@ const CUSTOM = {
   T01: { name: '각성의 이지안', st: { gk: 100, sta: 100, def: 100, pas: 100, sht: 100, spd: 100, dri: 100 } },
   M01: { name: '김승현', st: { gk: 100, sta: 90, def: 70, pas: 70, sht: 70, spd: 80, dri: 67 } },
   M02: { name: '어느 2학년 형', st: { gk: 90, sta: 90, def: 90, pas: 90, sht: 90, spd: 90, dri: 90 } },
-  L01: { name: '유동원', st: { gk: 80, sta: 70, def: 80, pas: 80, sht: 70, spd: 90, dri: 80 } },
+  M03: { name: '유동원', st: { gk: 87, sta: 77, def: 87, pas: 87, sht: 77, spd: 97, dri: 87 } }, // 전설 능력치 +7 → 신화
   L02: { name: '김지용', st: { gk: 70, sta: 80, def: 80, pas: 70, sht: 93, spd: 67, dri: 70 } },
   L03: { name: '김도윤', st: { gk: 67, sta: 80, def: 75, pas: 80, sht: 80, spd: 80, dri: 70 } },
   L04: { name: '모똥원', st: { gk: 80, sta: 80, def: 90, pas: 70, sht: 60, spd: 70, dri: 90 } },
