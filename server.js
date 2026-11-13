@@ -49,7 +49,7 @@ if (fs.existsSync(path.join(PUB, 'index.html'))) {
   app.use(express.static(PUB, { maxAge: '5m', extensions: ['html'] }));
 } else {
   // 평평한 구조: 클라이언트 파일 5개만 공개 (server.js 등은 노출하지 않음)
-  const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js'];
+  const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js'];
   app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
 }
