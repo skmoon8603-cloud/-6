@@ -35,15 +35,22 @@
         <h3 style="margin:4px 0 2px">🏓 원 바운스</h3>
         <p class="tiny" style="margin:0 0 10px">공은 내 코트에 <b>최대 한 번</b>만 튕겨요. 떠 있을 때든 한 번 튕긴 뒤든 발로 차서 넘기세요. 두 번 튕기면 실점! 7점 먼저 내면 승리.</p>
         <button id="bzCpu" class="btn primary big" style="width:100%">🤖 AI와 대결 (승리 시 +${won(1000)})</button>
-        <div class="lbl" style="margin-top:14px;text-align:left">👥 친구와 대결 (보상 없음)</div>
-        <button id="bzCreate" class="btn big" style="width:100%">방 만들기</button>
+        <div class="lbl" style="margin-top:14px;text-align:left">👥 친구와 대결 (방 만들기)</div>
+        <div class="lbl" style="text-align:left;margin:6px 0 4px">판돈 <span id="bzBal" style="float:right"></span></div>
+        <div id="bzStakes" class="stakes"></div>
+        <button id="bzCreate" class="btn big" style="width:100%;margin-top:8px">방 만들기</button>
         <div class="row" style="margin-top:8px"><input id="bzCode" class="inp code-inp" maxlength="8" placeholder="방 코드" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="bzJoin" class="btn">입장</button></div>
       </div></div>
       <div id="bWait" class="overlay hidden"><div class="sheet center" style="max-width:340px">
         <div class="lbl">친구에게 이 코드를 알려주세요</div>
         <div id="bWaitCode" class="res-score" style="letter-spacing:.2em">------</div>
+        <div id="bWaitStake" class="tiny"></div>
         <p class="tiny">친구가 [원 바운스 → 코드 입력]으로 들어오면 바로 시작해요.</p>
         <button id="bWaitCancel" class="btn">취소</button>
+      </div></div>
+      <div id="bConfirm" class="overlay hidden"><div class="sheet center" style="max-width:320px">
+        <h3 id="bcTitle" style="margin:0 0 6px">내기 방이에요</h3><p id="bcText" class="tiny"></p>
+        <div class="row"><button id="bcYes" class="btn primary">입장</button><button id="bcNo" class="btn">취소</button></div>
       </div></div>
       <div id="bResult" class="overlay hidden"><div class="sheet result">
         <div id="brTitle" class="res-title">WIN</div><div id="brScore" class="res-score">0 : 0</div><div id="brNote" class="tiny"></div>
@@ -64,9 +71,11 @@
     $('bMenuX').addEventListener('click', exit);
     $('bzCpu').addEventListener('click', () => go('bz:cpu'));
     $('bzCreate').addEventListener('click', () => go('bz:create'));
-    $('bzJoin').addEventListener('click', () => go('bz:join', $('bzCode').value));
+    $('bzJoin').addEventListener('click', () => join($('bzCode').value));
+    $('bcNo').addEventListener('click', () => $('bConfirm').classList.add('hidden'));
+    $('bcYes').addEventListener('click', () => { $('bConfirm').classList.add('hidden'); go('bz:join', pendingCode); });
     $('bzCode').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8); });
-    $('bzCode').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') go('bz:join', $('bzCode').value); });
+    $('bzCode').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') join($('bzCode').value); });
     $('bWaitCancel').addEventListener('click', () => { leave(); $('bWait').classList.add('hidden'); $('bMenu').classList.remove('hidden'); });
     $('brAgain').addEventListener('click', () => { $('bResult').classList.add('hidden'); if (lastMode === 'bz:cpu') go('bz:cpu'); else $('bMenu').classList.remove('hidden'); });
     addEventListener('keydown', (e) => {
@@ -81,7 +90,28 @@
     addEventListener('resize', fit);
   }
 
-  let lastMode = '';
+  let lastMode = '', stake = 0, pendingCode = '';
+  const STAKES = () => (RF.cat && RF.cat.stakes) || [0, 1000, 2000, 5000, 10000];
+  function renderStakes() {
+    const el = $('bzStakes'); if (!el) return;
+    el.innerHTML = STAKES().map((v) => `<button data-v="${v}" class="${v === stake ? 'on' : ''}">${v ? won(v) : '없음'}</button>`).join('');
+    el.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { stake = +b.dataset.v; sfx('tap'); renderStakes(); }));
+    const bal = $('bzBal'); if (bal) bal.textContent = '내 잔액 ' + won((RF.state && RF.state.bal) || 0);
+  }
+  /** 입장 전에 판돈을 확인하고, 내기 방이면 한 번 더 물어본다 */
+  function join(code) {
+    const s = sock(); if (!s) return RF.toast && RF.toast('서버에 연결 중이에요. 잠시 후 다시!', true);
+    code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (code.length < 6) return RF.toast && RF.toast('방 코드를 입력해 주세요', true);
+    bind(s);
+    s.emit('bz:peek', { code }, (r) => {
+      if (!r || !r.ok) return RF.toast && RF.toast(ERR[r && r.err] || '방을 찾을 수 없어요', true);
+      if (!r.stake) return go('bz:join', code);
+      pendingCode = code; $('bcTitle').textContent = '내기 방이에요 💰';
+      $('bcText').innerHTML = `${r.host} 님의 방 · 판돈 <b>${won(r.stake)}</b><br>이기면 ${won(r.stake * 2)}을 받고, 지면 ${won(r.stake)}을 잃어요.`;
+      $('bConfirm').classList.remove('hidden');
+    });
+  }
   function sock() { return RF.socket && RF.socket.connected ? RF.socket : null; }
 
   function bind(s) {
@@ -91,8 +121,13 @@
       $('bMenu').classList.add('hidden'); $('bWait').classList.add('hidden'); $('bResult').classList.add('hidden');
       $('bnL').textContent = names[side]; $('bnR').textContent = names[1 - side];
       $('bsL').textContent = '0'; $('bsR').textContent = '0';
+      $('bHelp').innerHTML = d.stake ? `💰 판돈 ${won(d.stake)} 내기! 두 번 튕기기 전에 발로 차세요` : '공이 내 코트에 <b>두 번 튕기기 전에</b> 발로 차세요! (떠 있을 때 차도 OK)';
       fit(); banner(d.cpu ? '준비! AI와 대결' : '친구와 대결 시작!');
       cancelAnimationFrame(raf); last = performance.now(); raf = requestAnimationFrame(loop);
+    });
+    s.on('bz:error', (d) => {
+      $('bWait').classList.add('hidden'); $('bMenu').classList.remove('hidden');
+      RF.toast && RF.toast(d.err === 'not_enough' ? `${d.who ? d.who + ' 님' : ''} 잔액이 부족해서 시작할 수 없어요 (판돈 ${won(d.stake)})` : d.err === 'locked' ? '다른 내기가 정산 중이에요. 잠시 후 다시!' : '시작할 수 없어요', true); renderStakes();
     });
     s.on('bz:snap', (sn) => { snaps.push({ t: performance.now(), s: sn }); if (snaps.length > 30) snaps.shift(); });
     s.on('bz:ev', (evs) => { for (const e of evs) onEv(e); });
@@ -102,7 +137,7 @@
       const win = d.winner === side;
       $('brTitle').textContent = win ? 'WIN' : 'LOSE';
       $('brScore').textContent = (side === 0 ? d.score[0] + ' : ' + d.score[1] : d.score[1] + ' : ' + d.score[0]);
-      $('brNote').textContent = d.reward ? `🎉 승리 보상 +${won(d.reward.amount)} (잔액 ${won(d.reward.bal)})` : (d.forfeit ? (win ? '상대가 나가서 승리했어요' : '') : '');
+      $('brNote').textContent = d.stake ? (d.pay > 0 ? `💰 판돈 획득 +${won(d.pay * 2 - d.pay)}` : d.pay < 0 ? `💸 판돈 −${won(-d.pay)}` : '판돈 환급') : d.reward ? `🎉 승리 보상 +${won(d.reward.amount)} (잔액 ${won(d.reward.bal)})` : (d.forfeit ? (win ? '상대가 나가서 승리했어요' : '') : '');
       $('bResult').classList.remove('hidden');
       sfx(win ? 'legend' : 'save');
     });
@@ -113,9 +148,9 @@
     const s = sock(); if (!s) return RF.toast && RF.toast('서버에 연결 중이에요. 잠시 후 다시!', true);
     if (ev === 'bz:join' && String(code || '').length < 6) return RF.toast && RF.toast('방 코드를 입력해 주세요', true);
     bind(s); lastMode = ev; sfx('tap');
-    s.emit(ev, ev === 'bz:join' ? { code } : {}, (r) => {
-      if (!r || !r.ok) return RF.toast && RF.toast(ERR[r && r.err] || '시작할 수 없어요', true);
-      if (ev === 'bz:create') { $('bMenu').classList.add('hidden'); $('bWaitCode').textContent = r.code; $('bWait').classList.remove('hidden'); }
+    s.emit(ev, ev === 'bz:join' ? { code } : ev === 'bz:create' ? { stake } : {}, (r) => {
+      if (!r || !r.ok) return RF.toast && RF.toast(r && r.err === 'not_enough' ? `잔액이 부족해요 (판돈 ${won(r.stake || stake)})` : ERR[r && r.err] || '시작할 수 없어요', true);
+      if (ev === 'bz:create') { $('bMenu').classList.add('hidden'); $('bWaitCode').textContent = r.code; $('bWaitStake').textContent = r.stake ? `💰 판돈 ${won(r.stake)} (이기면 ${won(r.stake * 2)})` : '판돈 없음'; $('bWait').classList.remove('hidden'); }
     });
   }
   function leave() { const s = sock(); if (s) s.emit('bz:leave'); }
@@ -124,7 +159,7 @@
     build(); fit();
     const s = sock(); if (s) bind(s);
     inGame = false; $('bResult').classList.add('hidden'); $('bWait').classList.add('hidden'); $('bMenu').classList.remove('hidden');
-    $('scr-bounce').classList.remove('hidden');
+    $('scr-bounce').classList.remove('hidden'); renderStakes();
     draw(0, true);
   }
   function exit(skipLeave) {
@@ -236,6 +271,7 @@
   }
 
   RF.openBounce = open;
+  RF.joinBounce = (code) => { open(); join(code); };
   const bind0 = () => { const b = $('btnBounce'); if (b) b.addEventListener('click', () => { sfx('tap'); open(); }); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind0); else bind0();
 })();

@@ -290,3 +290,8 @@ input{font:inherit;color:inherit}
 .att-c small{display:block;font-size:10px;color:var(--mut)} .att-c b{font-size:13px}
 .att-c.done{background:#2cff8a1f;border-color:var(--acc);color:var(--acc)}
 .att-c.cur{border-color:var(--gold);box-shadow:0 0 0 2px #ffc53d44;color:var(--gold)}
+.stakes{display:flex;gap:6px;flex-wrap:wrap}
+.stakes button{flex:1;min-width:56px;height:38px;border-radius:10px;border:1px solid var(--line);background:#0b1430;color:var(--txt);font-weight:700;font-size:12px}
+.stakes button.on{border-color:var(--gold);background:#ffc53d22;color:var(--gold)}
+#bMenu .sheet,#bWait .sheet,#bConfirm .sheet{max-height:94vh;overflow:auto}
+#bMenu .tiny{margin:0 0 8px}

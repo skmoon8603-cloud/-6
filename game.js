@@ -94,6 +94,7 @@
     if (needConn()) return;
     code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length < 6 || code.length > 8) return RF.toast(ERR.bad_code, true);
+    if (code.length === 7 && code[0] === 'B' && RF.joinBounce) return RF.joinBounce(code); // 원 바운스 방 코드
     socket.emit('room:join', { ...RF.teamPayload(), code }, (r) => { if (r && r.ok) { RF.toast('입장 성공!'); enter(r.code); } else RF.toast(ERR[r && r.err] || '입장 실패', true); });
   }
   $('btnJoin').addEventListener('click', () => { RF.sfx('tap'); join($('codeInput').value); });

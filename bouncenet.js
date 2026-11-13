@@ -8,6 +8,7 @@
 const crypto = require('crypto');
 const K = require('./const');
 const { OneBounce, C } = require('./onebounce');
+const { STAKES } = require('./accounts');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 500;
@@ -21,17 +22,36 @@ function attach(io, { accounts, autoloop = true }) {
 
   const genCode = () => {
     for (let i = 0; i < 100; i++) {
-      let c = 'B'; for (let k = 0; k < 5; k++) c += CODE_CHARS[crypto.randomInt(0, CODE_CHARS.length)];
+      let c = 'B'; for (let k = 0; k < 6; k++) c += CODE_CHARS[crypto.randomInt(0, CODE_CHARS.length)];
       if (!rooms.has(c)) return c;
     }
     return null;
   };
 
-  function startMatch(room) {
+  async function startMatch(room) {
+    if (room.stake > 0 && !room.cpu) { // 내기: 두 사람의 판돈을 동시에 잠근다 (실패하면 아무것도 바뀌지 않음)
+      room.state = 'starting';
+      let r;
+      try { r = await accounts.escrow(room.code, room.players.map((p) => p.uid), room.stake); } catch (e) { log(e); r = { ok: false, err: 'server_error' }; }
+      if (!r.ok) {
+        const who = room.players.find((p) => p.uid === r.who);
+        for (const p of room.players) emit(p, 'bz:error', { err: r.err, who: who ? who.name : '', stake: room.stake });
+        drop(room); return;
+      }
+      room.escrowed = true;
+      if (room.aborted || rooms.get(room.code) !== room || room.players.length < 2) { // 잠그는 사이에 누가 나감 → 전액 환급
+        try { await accounts.settle(room.code, room.players.map((p) => p.uid), null); } catch (e) { log(e); }
+        room.escrowed = false;
+        for (const p of room.players) { const a = await accounts.get(p.uid); if (a) emit(p, 'account', a); }
+        for (const p of room.players) emit(p, 'bz:left', {});
+        drop(room); return;
+      }
+    }
+    if (room.escrowed) for (const p of room.players) { const a = await accounts.get(p.uid); if (a) emit(p, 'account', a); } // 판돈이 잠긴 잔액 반영
     room.game = new OneBounce({ cpu: room.cpu, level: K.BOUNCE_CPU_LEVEL });
     room.state = 'play'; room.t0 = Date.now(); room.acc = 0; room.last = Date.now(); room.snapN = 0;
     room.players.forEach((p, side) => emit(p, 'bz:start', {
-      side, code: room.code, cpu: room.cpu, C,
+      side, code: room.code, cpu: room.cpu, stake: room.stake, C,
       names: [room.players[0].name, room.cpu ? 'AI' : room.players[1] ? room.players[1].name : '?'],
     }));
   }
@@ -40,14 +60,19 @@ function attach(io, { accounts, autoloop = true }) {
     if (room.concluded) return;
     room.concluded = true; room.state = 'ended';
     const winner = g.winner, forfeit = !!(g.ev.find((e) => e.type === 'end' && e.forfeit));
-    let reward = null;
+    let reward = null, settle = null;
     try {
-      if (room.cpu && winner === 0 && !forfeit && room.players[0]) {
+      if (room.escrowed) {
+        const wUid = winner >= 0 && room.players[winner] ? room.players[winner].uid : null;
+        settle = await accounts.settle(room.code, room.players.map((p) => p.uid), wUid);
+        room.escrowed = false;
+        for (const p of room.players) if (settle.accts && settle.accts[p.uid]) emit(p, 'account', settle.accts[p.uid]);
+      } else if (room.cpu && winner === 0 && !forfeit && room.players[0]) {
         const a = await accounts.reward(room.players[0].uid, K.BOUNCE_REWARD);
         if (a) { reward = { amount: K.BOUNCE_REWARD, bal: a.bal }; emit(room.players[0], 'account', a); }
       }
     } catch (e) { log(e); }
-    room.players.forEach((p, side) => emit(p, 'bz:end', { winner, you: side, score: g.score.slice(), forfeit, reward: side === 0 ? reward : null }));
+    room.players.forEach((p, side) => emit(p, 'bz:end', { winner, you: side, score: g.score.slice(), forfeit, reward: side === 0 ? reward : null, stake: settle && settle.stake ? settle.stake : 0, pay: settle && settle.stake ? (settle.winnerId ? (settle.winnerId === room.players[side].uid ? settle.stake : -settle.stake) : 0) : 0 }));
   }
 
   function step() {
@@ -82,6 +107,7 @@ function attach(io, { accounts, autoloop = true }) {
     const code = socket.data.bzCode; const room = code && rooms.get(code); if (!room) return;
     const side = room.players.findIndex((p) => p.socket === socket);
     if (side < 0) return;
+    if (room.state === 'starting') { room.aborted = true; return; }
     if (room.state === 'play') { const g = room.game; g.forfeit(side); await conclude(room, g); drop(room); return; }
     room.players.splice(side, 1);
     if (byUid.get(socket.data.uid) === code) byUid.delete(socket.data.uid);
@@ -108,21 +134,30 @@ function attach(io, { accounts, autoloop = true }) {
         if (!room || room.cpu) return ack(cb, { ok: false, err: 'no_room' });
         if (room.state !== 'lobby' || room.players.length >= 2) return ack(cb, { ok: false, err: 'room_full' });
         if (room.players[0].uid === uid) return ack(cb, { ok: false, err: 'self' });
+        if (room.stake > 0) { const a = await accounts.get(uid); if (!a || a.bal < room.stake) return ack(cb, { ok: false, err: 'not_enough', stake: room.stake }); if (a.locked) return ack(cb, { ok: false, err: 'locked' }); }
         room.players.push(pl); byUid.set(uid, code); socket.data.bzCode = code;
-        ack(cb, { ok: true, code });
-        startMatch(room);
+        ack(cb, { ok: true, code, stake: room.stake });
+        await startMatch(room);
         return;
       }
       const code = genCode(); if (!code) return ack(cb, { ok: false, err: 'server_busy' });
-      const room = { code, players: [pl], state: 'lobby', cpu: mode === 'cpu', created: Date.now(), game: null, concluded: false };
+      const stake = mode === 'create' && STAKES.includes(+(d && d.stake)) ? +d.stake : 0;
+      if (stake > 0) { const a = await accounts.get(uid); if (!a || a.bal < stake) return ack(cb, { ok: false, err: 'not_enough', stake }); if (a.locked) return ack(cb, { ok: false, err: 'locked' }); }
+      const room = { code, players: [pl], state: 'lobby', cpu: mode === 'cpu', stake, escrowed: false, created: Date.now(), game: null, concluded: false };
       rooms.set(code, room); byUid.set(uid, code); socket.data.bzCode = code;
-      ack(cb, { ok: true, code, cpu: room.cpu });
+      ack(cb, { ok: true, code, cpu: room.cpu, stake });
       if (room.cpu) startMatch(room);
     };
 
     socket.on('bz:cpu', safe((d, cb) => enter(d, cb, 'cpu')));
     socket.on('bz:create', safe((d, cb) => enter(d, cb, 'create')));
     socket.on('bz:join', safe((d, cb) => enter(d, cb, 'join')));
+    socket.on('bz:peek', safe((d, cb) => { // 입장 전 판돈 확인
+      if (!allow(10)) return ack(cb, { ok: false });
+      const room = rooms.get(String(d && d.code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
+      if (!room || room.cpu || room.state !== 'lobby' || room.players.length >= 2) return ack(cb, { ok: false, err: room ? 'room_full' : 'no_room' });
+      ack(cb, { ok: true, stake: room.stake, host: room.players[0].name });
+    }));
     socket.on('bz:leave', safe(async () => { if (allow(10)) await leave(socket); }));
     const mine = () => { const room = rooms.get(socket.data.bzCode); if (!room || room.state !== 'play') return null; const side = room.players.findIndex((p) => p.socket === socket); return side < 0 ? null : { room, side }; };
     socket.on('bz:in', (d) => { if (!allow(60) || !d) return; const m = mine(); if (m) m.room.game.setMove(m.side, +d.m); });

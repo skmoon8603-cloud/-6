@@ -98,7 +98,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const A3 = await conn(ua); await A3.send('bz:cpu', {}); await A3.send('bz:leave'); assert.strictEqual((await accounts.get(ua.id)).bal, 1000); assert.strictEqual(net.rooms.size, 0); ok('도중에 나가면(기권) 보상 없음');
   // 친구 대결: 방 만들기 → 입장 → 입력 → 승부, 보상 없음
   const B = await conn(ub), Cc = await conn(uc);
-  const cr = await B.send('bz:create', {}); assert(cr.ok && /^B[A-Z0-9]{5}$/.test(cr.code));
+  const cr = await B.send('bz:create', {}); assert(cr.ok && /^B[A-Z0-9]{6}$/.test(cr.code));
   assert.strictEqual((await Cc.send('bz:join', { code: 'ZZZZZZ' })).err, 'no_room'); ok('없는 방 코드는 입장 실패');
   const jr = await Cc.send('bz:join', { code: cr.code }); assert(jr.ok);
   assert.strictEqual(B.got('bz:start')[0].side, 0); assert.strictEqual(Cc.got('bz:start')[0].side, 1); ok('친구가 코드로 입장하면 양쪽에 시작 알림 (A=왼쪽, B=오른쪽)');
@@ -111,5 +111,26 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const E = await conn(await user('eve')), F = await conn(await user('finn'));
   const er = await E.send('bz:create', {}); await F.send('bz:join', { code: er.code }); E.drop(); await sleep(20);
   assert(F.got('bz:end')[0].winner === 1 && F.got('bz:end')[0].forfeit); ok('상대가 끊기면 남은 사람 승리(기권승)');
+  // ── 내기(판돈) ──
+  const bal = async (u) => (await accounts.get(u.id)).bal;
+  const P1 = await user('pay1'), P2 = await user('pay2'), P3 = await user('pay3');
+  await accounts.reward(P1.id, 5000); await accounts.reward(P2.id, 5000);
+  const S1 = await conn(P1), S2 = await conn(P2), S3 = await conn(P3);
+  assert.strictEqual((await S3.send('bz:create', { stake: 1000 })).err, 'not_enough'); ok('잔액이 모자라면 내기 방을 못 만든다');
+  const sc = await S1.send('bz:create', { stake: 2000 }); assert(sc.ok && sc.stake === 2000);
+  const pk = await S3.send('bz:peek', { code: sc.code }); assert(pk.ok && pk.stake === 2000); ok('입장 전에 방의 판돈을 미리 확인(peek)');
+  assert.strictEqual((await S3.send('bz:join', { code: sc.code })).err, 'not_enough'); assert.strictEqual(net.rooms.size, 1); ok('잔액이 모자란 사람은 내기 방에 입장 불가');
+  assert((await S2.send('bz:join', { code: sc.code })).ok); await sleep(40);
+  assert.strictEqual(await bal(P1), 3000); assert.strictEqual(await bal(P2), 3000); assert.strictEqual(S1.got('bz:start')[0].stake, 2000); ok('시작 시 두 사람의 판돈이 동시에 잠김 (5,000 → 3,000)');
+  const pr = [...net.rooms.values()].find((r) => r.stake === 2000); for (let i = 0; i < C.WIN; i++) pr.game.point(0, 'double'); net.step(); await sleep(40);
+  assert.strictEqual(await bal(P1), 7000); assert.strictEqual(await bal(P2), 3000);
+  const e1 = S1.got('bz:end')[0], e2 = S2.got('bz:end')[0]; assert(e1.pay === 2000 && e2.pay === -2000); ok('승자가 판돈 전액 획득 (승자 7,000 / 패자 3,000)');
+  assert.strictEqual((await accounts.get(P1.id)).locked, 0); ok('정산 후 잠금 해제');
+  // 도중에 나가면 기권패 → 상대가 판돈 획득
+  const L1 = await conn(P1), L2 = await conn(P2); const lc = await L1.send('bz:create', { stake: 1000 }); await L2.send('bz:join', { code: lc.code }); await sleep(40);
+  assert.strictEqual(await bal(P1), 6000); L2.drop(); await sleep(30);
+  assert.strictEqual(await bal(P1), 8000); assert.strictEqual(await bal(P2), 2000); ok('내기 중 나가면 기권패 (상대가 판돈 획득)');
+  // 이미 다른 내기 중인 사람은 못 들어옴 / AI 방은 판돈 없음
+  const AI = await conn(P1); await AI.send('bz:cpu', {}); assert.strictEqual(await bal(P1), 8000); await AI.send('bz:leave'); ok('AI 대결은 판돈이 없다');
   console.log('\n원 바운스 통과: ' + n + '개');
 })().catch((e) => { console.error(e); process.exit(1); });
