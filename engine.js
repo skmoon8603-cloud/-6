@@ -50,7 +50,7 @@ class Match {
         const p = {
           i: side * K.TEAM_SIZE + slot, side, slot, pos: meta.pos, st, id,
           x: 0, y: 0, vx: 0, vy: 0, ang: side === 0 ? 0 : Math.PI, stam: 100, tired: false,
-          kickCd: 0, kickAnim: 0, hold: 0, think: 0, dx: 0, dy: 0, sp: false, boost: 1, catchCd: 0, diving: 0,
+          kickCd: 0, kickAnim: 0, tackleCd: 0, hold: 0, skill: o.bots[side] ? K.BOT_SKILL : K.MATE_SKILL, aiNoise: 0, think: 0, dx: 0, dy: 0, sp: false, boost: 1, catchCd: 0, diving: 0,
           maxSpd: 115 + st.spd * 0.95,
         };
         this.players.push(p);
@@ -139,7 +139,7 @@ class Match {
       for (let s = 0; s < K.TEAM_SIZE; s++) {
         const p = this.players[tm.side * K.TEAM_SIZE + s];
         p.kickCd = Math.max(0, p.kickCd - dt); p.kickAnim = Math.max(0, p.kickAnim - dt);
-        p.catchCd = Math.max(0, p.catchCd - dt); p.diving = Math.max(0, p.diving - dt);
+        p.catchCd = Math.max(0, p.catchCd - dt); p.tackleCd = Math.max(0, p.tackleCd - dt); p.diving = Math.max(0, p.diving - dt);
         p.boost = 1;
         const human = !tm.bot && tm.ctrl === s;
         if (human) {
@@ -270,16 +270,35 @@ class Match {
   /** 공과 선수 접촉: 드리블 보조, 충돌, 골키퍼 캐치 */
   playerBall(dt) {
     const b = this.ball;
-    // 드리블 소유자 결정 (수비 능력은 탈취에 유리, 기존 소유자는 약간 유리)
+    // 드리블 소유자 결정. 상대가 공을 가진 선수에게서 뺏으려면 '태클 판정'을 통과해야 한다.
+    // 성공 확률은 태클하는 선수의 수비 능력이 높을수록, 공 가진 선수의 볼 컨트롤이 낮을수록 높다.
     let best = null, bestEff = 1e9;
     for (const p of this.players) {
       if (p.kickCd > 0) continue;
       const d = Math.hypot(b.x - p.x, b.y - p.y);
       if (d > PR + BR + 10) continue;
       let eff = d;
-      if (b.lastSide >= 0 && p.side !== b.lastSide) eff -= p.st.def * 0.07;
       if (b.owner === p.i) eff -= 3;
       if (eff < bestEff) { bestEff = eff; best = p; }
+    }
+    const carrier = b.owner >= 0 ? this.players[b.owner] : null;
+    if (carrier && Math.hypot(b.x - carrier.x, b.y - carrier.y) <= PR + BR + 12) {
+      // 가장 가까운 상대 선수가 태클을 시도한다
+      let opp = null, od = 1e9;
+      for (const q of this.players) {
+        if (q.side === carrier.side || q.kickCd > 0) continue;
+        const d = Math.hypot(b.x - q.x, b.y - q.y);
+        if (d <= PR + BR + 10 && d < od) { od = d; opp = q; }
+      }
+      if (opp) {
+        best = carrier;
+        if (opp.tackleCd <= 0) {
+          const ctl = (carrier.st.pas + carrier.st.spd) / 2;
+          const chance = clamp(0.22 + (opp.st.def - ctl) * 0.007, 0.05, 0.7);
+          if (this.rng() < chance) { best = opp; carrier.kickCd = 0.35; opp.tackleCd = 0.5; this.events.push({ type: 'save' }); } // 뺏기 성공
+          else { opp.tackleCd = 0.8; opp.vx *= 0.35; opp.vy *= 0.35; } // 실패: 태클한 선수가 주춤
+        }
+      }
     }
     if (best) {
       const p = best;
@@ -346,7 +365,7 @@ class Match {
       const a1 = Math.atan2(aimY - p.y, gx - p.x);
       ang = lerpAng(ang, a1, 0.7);
     }
-    ang += (this.rng() - 0.5) * 2 * (0.015 + ((100 - p.st.sht) / 100) * 0.11);
+    ang += (this.rng() - 0.5) * 2 * (0.015 + ((100 - p.st.sht) / 100) * 0.11 + p.aiNoise);
     const speed = (380 + p.st.sht * 5) * (0.5 + 0.5 * power);
     this.kick(p, ang, speed);
     return true;
@@ -384,7 +403,7 @@ class Match {
     const lead = Math.min(0.6, d / spd) * 0.75;
     const tx = best.x + best.vx * lead, ty = best.y + best.vy * lead;
     let ang = Math.atan2(ty - p.y, tx - p.x);
-    ang += (this.rng() - 0.5) * 2 * (0.01 + ((100 - p.st.pas) / 100) * 0.07);
+    ang += (this.rng() - 0.5) * 2 * (0.01 + ((100 - p.st.pas) / 100) * 0.07 + p.aiNoise);
     this.kick(p, ang, spd);
     const tm = this.teams[p.side];
     tm.receiver = best.i; tm.receiverUntil = this.tick + 100;

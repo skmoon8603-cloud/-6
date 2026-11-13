@@ -16,6 +16,8 @@ module.exports = {
   BALL_FRICTION: 0.85,   // 지수 감쇠 계수 (1/s)
   TEAM_SIZE: 6,
   PLAYER_SPEED_SCALE: 0.8, // 모든 선수 이동 속도 배율 (1.0 = 이전 속도)
+  BOT_SKILL: 0.55,        // CPU 상대 AI 실력 (0~1, 낮을수록 멍청)
+  MATE_SKILL: 0.75,       // 내 팀 AI 팀원 실력
   PULL_COST: 1000,        // 뽑기 1회 가격 (게임 내 가상 재화 '원')
   WIN_REWARD: 1000,       // CPU 연습경기 승리 보상
   START_BAL: 0,           // 처음 시작 잔액 (0원: CPU를 이겨서 벌어야 함)
