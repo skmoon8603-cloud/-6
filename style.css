@@ -263,3 +263,20 @@ input{font:inherit;color:inherit}
 .res-reward{margin:6px 0;font-size:20px;font-weight:900;color:var(--gold);animation:tagIn .6s both}
 
 .pcard.r-trans{border-color:transparent;background:linear-gradient(#050a1a,#050a1a) padding-box,conic-gradient(from var(--ang,0deg),#ffffff,#5cf2ff,#b65cff,#ffffff,#ffd45e,#5cf2ff,#ffffff) border-box;box-shadow:0 0 34px #5cf2ffcc,0 0 70px #b65cff66,0 6px 16px #0006;animation:pulse 1.2s ease-in-out infinite}
+
+/* ── 원 바운스 (새 미니게임) ── */
+#scr-bounce{position:fixed;inset:0;z-index:60;background:#0b1a2e;touch-action:none;user-select:none;-webkit-user-select:none}
+#bcv{position:absolute;inset:0;display:block}
+#bScore{position:absolute;top:calc(8px + var(--safe-t));left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:center;
+  background:#0c1428cc;border:1px solid var(--line);border-radius:14px;padding:4px 16px;font-size:13px;color:var(--mut)}
+#bScore b{font-size:26px;color:var(--txt);min-width:22px;text-align:center}
+#bExit{position:absolute;top:calc(8px + var(--safe-t));right:calc(10px + var(--safe-r));width:40px;height:40px;border-radius:12px;background:#0c1428cc;border:1px solid var(--line);color:var(--txt);font-size:16px}
+#bBanner{position:absolute;top:30%;left:50%;transform:translateX(-50%);background:#0c1428e6;border:1px solid var(--acc2);border-radius:14px;padding:10px 18px;font-weight:800;font-size:17px;text-align:center;pointer-events:none;max-width:90%}
+#bHelp{position:absolute;top:calc(56px + var(--safe-t));left:50%;transform:translateX(-50%);font-size:12px;color:#cfe0ff;background:#0c142899;border-radius:10px;padding:3px 10px;white-space:nowrap;pointer-events:none}
+#bCtl{position:absolute;left:0;right:0;bottom:calc(10px + var(--safe-b));display:flex;justify-content:space-between;padding:0 calc(16px + var(--safe-l)) 0 calc(16px + var(--safe-r));pointer-events:none}
+.bpad{display:flex;gap:12px;pointer-events:auto}
+.bpad button{width:84px;height:84px;border-radius:50%;background:#ffffff1f;border:2px solid #ffffff55;color:#fff;font-size:26px;font-weight:800;touch-action:none}
+.bpad button small{display:block;font-size:10px;font-weight:600;opacity:.7}
+.bpad .bhit{font-size:16px;background:#2cff8a30;border-color:#2cff8a}
+.bpad .bhit.sm{background:#ff4d6a30;border-color:#ff4d6a}
+.bpad button.down{background:#ffffff55;transform:scale(.94)}

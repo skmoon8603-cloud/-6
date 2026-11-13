@@ -16,12 +16,7 @@ module.exports = {
   BALL_FRICTION: 0.85,   // 지수 감쇠 계수 (1/s)
   TEAM_SIZE: 6,
   PLAYER_SPEED_SCALE: 0.6, // 모든 선수 이동 속도 배율 (1.0 = 이전 속도) — 단순/느리게
-  BALL_SPEED_SCALE: 0.7,  // 킥(슛/패스) 속도 배율
   SPRINT_MUL: 1.2,        // 달리기 배율
-  ONE_BOUNCE: true,       // 원바 규칙: 찬 공은 바닥에 한 번 튕긴 뒤에야 터치할 수 있다
-  GRAVITY: 900,           // 공 높이(z) 중력
-  TOUCH_Z: 14,            // 이 높이 이하일 때만 선수가 공을 칠 수 있음
-  GK_TOUCH_Z: 32,         // 골키퍼는 더 높이까지 손이 닿는다
   BOT_SKILL: 0.55,        // CPU 상대 AI 실력 (0~1, 낮을수록 멍청)
   MATE_SKILL: 0.75,       // 내 팀 AI 팀원 실력
   PULL_COST: 1000,        // 뽑기 1회 가격 (게임 내 가상 재화 '원')
