@@ -71,7 +71,7 @@ http.createServer(async (req, res) => {
     res.write(': ok\n\n');
     const h = {};
     const push = (ev, d) => { try { res.write('data: ' + JSON.stringify({ ev, d }) + '\n\n'); } catch (e) { /* closed */ } };
-    const sock = { id: sid, data: {}, handshake: { auth: { token: url.searchParams.get('token') } }, on: (ev, fn) => { h[ev] = fn; }, emit: push, leave() {}, disconnect() { res.end(); }, volatile: { emit: push } };
+    const sock = { id: sid, data: {}, handshake: { auth: { token: url.searchParams.get('token') } }, on: (ev, fn) => { const prev = h[ev]; h[ev] = prev ? (...a) => { prev(...a); return fn(...a); } : fn; }, emit: push, leave() {}, disconnect() { res.end(); }, volatile: { emit: push } };
     socks.set(sid, { h, sock });
     try { for (const fn of mw) await new Promise((ok, no) => fn(sock, (e) => (e ? no(e) : ok()))); } catch (e) { return res.end(); }
     handlersOnConn.forEach((fn) => fn(sock));
