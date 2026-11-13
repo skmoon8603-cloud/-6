@@ -85,7 +85,7 @@ function attach(io, { accounts, auth, autoloop = true }) {
     if (room.match) room.match.paused = false;
     const players = [...room.players];
     const score = room.match ? room.match.score.slice() : [0, 0];
-    room.lastResult = { score, winner, forfeit: !!forfeit, reason: reason || null };
+    room.lastResult = { score, winner, forfeit: !!forfeit, reason: reason || null, stats: room.match && room.match.summary ? room.match.summary() : null };
     let settle = null, rewardAmt = 0; const accts = {};
     try {
       if (room.escrowed) {

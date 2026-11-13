@@ -85,6 +85,9 @@
       case 'whistle': tone(2500, 0.35, 'sine', 0.12); tone(2650, 0.35, 'sine', 0.1, 0.02); break;
       case 'count': tone(520, 0.12, 'square', 0.07); break;
       case 'goal': [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, 'triangle', 0.14, i * 0.1)); noise(1.6, 0.14, 1800, 0.1); break;
+      case 'win': [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, 0.28, 'triangle', 0.15, i * 0.12)); tone(1568, 0.9, 'sawtooth', 0.07, 0.84); noise(1.2, 0.1, 6000, 0.8); break;
+      case 'lose': [392, 349, 311, 262].forEach((f, i) => tone(f, 0.4, 'triangle', 0.12, i * 0.22)); break;
+      case 'draw': [440, 440, 392].forEach((f, i) => tone(f, 0.3, 'triangle', 0.1, i * 0.2)); break;
       case 'end': tone(2500, 0.3, 'sine', 0.12); tone(2500, 0.5, 'sine', 0.12, 0.4); break;
       case 'shake': noise(0.12, 0.12, 500); tone(90, 0.12, 'square', 0.05); break;
       case 'common': tone(440, 0.15, 'triangle', 0.1); break;
@@ -161,9 +164,51 @@
     crash(tf + E * 2, 0.35); kick(tf + E * 2, 0.55); guitar(pw(164.81), 0.9, 0.14, tf + E * 2); bass(82.41, 0.9, 0.15, tf + E * 2);
     return BEAT;
   };
+  // ───────────── 배경음악 (직접 만든 잔잔한 칩튠 루프, 약 100BPM · Am-F-C-G) ─────────────
+  let bgmOn = LS.get('bgm', true), bgmGain = null, bgmTimer = 0, bgmNext = 0, bgmStep = 0, bgmLevel = 1;
+  const BPM = 100, SP = 60 / BPM / 2; // 8분음표 길이
+  const CH = [[110, 164.8, 220, 261.6, 329.6], [87.3, 130.8, 174.6, 220, 261.6], [130.8, 196, 261.6, 329.6, 392], [98, 146.8, 196, 246.9, 293.7]]; // 베이스 + 코드톤
+  function bvoice(f, d, type, vol, t) {
+    const c = ac; const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g).connect(bgmGain); o.start(t); o.stop(t + d + 0.03);
+  }
+  function bnoise(d, vol, f, t) {
+    const c = ac, n = Math.floor(c.sampleRate * d), buf = c.createBuffer(1, n, c.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain(); fl.type = 'highpass'; fl.frequency.value = f; g.gain.value = vol; s.buffer = buf;
+    s.connect(fl).connect(g).connect(bgmGain); s.start(t);
+  }
+  function bgmSchedule() {
+    if (!ac || !bgmGain) return;
+    while (bgmNext < ac.currentTime + 0.6) {
+      const s = bgmStep, bar = Math.floor(s / 8) % 8, k = s % 8, ch = CH[Math.floor(bar / 2) % 4], t = bgmNext;
+      if (k === 0 || k === 4) bvoice(ch[0], SP * 3.6, 'triangle', 0.1, t);                       // 베이스
+      if (k === 0) { bvoice(ch[1], SP * 7.5, 'sine', 0.035, t); bvoice(ch[2], SP * 7.5, 'sine', 0.03, t); } // 은은한 패드
+      const arp = [1, 3, 2, 4, 3, 2, 4, 2][k]; bvoice(ch[arp] * (bar >= 4 && k % 4 === 2 ? 2 : 1), SP * 1.6, 'square', 0.022, t); // 아르페지오
+      if (k % 4 === 2) bnoise(0.04, 0.05, 7000, t);                                              // 하이햇
+      if (k === 0 && bar % 2 === 0) { bvoice(150, 0.12, 'sine', 0.12, t); }                      // 부드러운 킥
+      bgmNext += SP; bgmStep++;
+    }
+  }
+  function bgmApply() {
+    const c = ac; if (!c || !bgmGain) return;
+    bgmGain.gain.cancelScheduledValues(c.currentTime); bgmGain.gain.linearRampToValueAtTime(bgmOn && !muted ? 0.9 * bgmLevel : 0, c.currentTime + 0.5);
+  }
+  function bgmStart() {
+    const c = ctx(); if (!c || bgmTimer) return;
+    bgmGain = c.createGain(); bgmGain.gain.value = 0; bgmGain.connect(c.destination);
+    bgmNext = c.currentTime + 0.1; bgmStep = 0; bgmTimer = setInterval(bgmSchedule, 150); bgmApply();
+  }
+  /** level: 1 로비 / 0.25 경기 중(작게) / 0 리플레이 중(끔) */
+  RF.bgmDuck = (level) => { bgmLevel = level; bgmApply(); };
+  RF.bgmToggle = () => { bgmOn = !bgmOn; LS.set('bgm', bgmOn); if (bgmOn) bgmStart(); bgmApply(); const b = document.getElementById('btnBgm'); if (b) { b.classList.toggle('off', !bgmOn); b.textContent = bgmOn ? '🎵' : '🔇'; } return bgmOn; };
+  document.addEventListener('visibilitychange', () => { if (!ac) return; if (document.hidden) ac.suspend && ac.suspend(); else ac.resume && ac.resume(); });
   RF.isMuted = () => muted;
-  RF.setMuted = (m) => { muted = !!m; LS.set('mute', muted); };
-  document.addEventListener('pointerdown', () => ctx(), { once: true, passive: true });
+  RF.setMuted = (m) => { muted = !!m; LS.set('mute', muted); bgmApply(); };
+  document.addEventListener('pointerdown', () => { ctx(); if (bgmOn) bgmStart(); }, { once: true, passive: true });
+  { const b = document.getElementById('btnBgm'); if (b) { b.classList.toggle('off', !bgmOn); b.textContent = bgmOn ? '🎵' : '🔇'; b.addEventListener('click', () => { RF.bgmToggle(); RF.sfx('tap'); }); } }
 
   // ───────────── 카탈로그/유틸 ─────────────
   const RAR = () => RF.cat.rarities;

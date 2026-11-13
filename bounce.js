@@ -159,13 +159,13 @@
     build(); fit();
     const s = sock(); if (s) bind(s);
     inGame = false; $('bResult').classList.add('hidden'); $('bWait').classList.add('hidden'); $('bMenu').classList.remove('hidden');
-    $('scr-bounce').classList.remove('hidden'); renderStakes();
+    $('scr-bounce').classList.remove('hidden'); renderStakes(); if (RF.bgmDuck) RF.bgmDuck(0.25);
     draw(0, true);
   }
   function exit(skipLeave) {
     if (skipLeave !== true) leave();
     inGame = false; cancelAnimationFrame(raf); snaps = [];
-    $('scr-bounce').classList.add('hidden');
+    $('scr-bounce').classList.add('hidden'); if (RF.bgmDuck) RF.bgmDuck(1);
   }
 
   function act(kind) {

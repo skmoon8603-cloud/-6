@@ -51,6 +51,13 @@ const OVR_W = {
 const POSS = ['GK', 'DF', 'MF', 'FW'];
 // 직접 만든 캐릭터 (해당 등급의 기존 자리 id 를 대체). 능력치 gk=골키퍼 sta=체력
 const CUSTOM = {
+  C02: { name: '라태양', st: { gk: 12, sta: 55, def: 50, pas: 52, sht: 48, spd: 58, dri: 50 } }, // 일반 (능력치는 임의 설정)
+  C03: { name: '오도현', st: { gk: 10, sta: 52, def: 56, pas: 50, sht: 42, spd: 55, dri: 46 } }, // 일반 (능력치는 임의 설정)
+  R02: { name: '류현중', st: { gk: 18, sta: 62, def: 58, pas: 66, sht: 64, spd: 66, dri: 64 } }, // 희귀 (능력치는 임의 설정)
+  R03: { name: '이승현', st: { gk: 15, sta: 66, def: 68, pas: 58, sht: 56, spd: 62, dri: 60 } }, // 희귀 (능력치는 임의 설정)
+  H03: { name: '이태이', st: { gk: 20, sta: 74, def: 66, pas: 74, sht: 72, spd: 72, dri: 72 } }, // 영웅(에픽) (능력치는 임의 설정)
+  L05: { name: '위호진', st: { gk: 40, sta: 80, def: 78, pas: 80, sht: 78, spd: 76, dri: 78 } }, // 전설 (능력치는 임의 설정)
+  M06: { name: '이지후', st: { gk: 95, sta: 82, def: 80, pas: 78, sht: 92, spd: 80, dri: 75 } }, // 신화 · 골키퍼인데 슈팅이 높음
   C01: { name: '왕정훈', st: { gk: 14, sta: 54, def: 63, pas: 48, sht: 36, spd: 50, dri: 50 } }, // 일반 · 수비수
   H01: { name: '박종모', st: { gk: 15, sta: 72, def: 60, pas: 72, sht: 62, spd: 74, dri: 82 } }, // 영웅(에픽) · 드리블형
   H02: { name: '최범규', st: { gk: 14, sta: 70, def: 52, pas: 66, sht: 80, spd: 76, dri: 80 } }, // 영웅(에픽) · 드리블+슛

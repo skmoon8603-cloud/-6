@@ -186,7 +186,7 @@
   });
 
   function startMatchUI(info) {
-    mInfo = info; side = info.side; inMatch = true; snaps.length = 0; replay = null; lastPhase = ''; lastCount = 0;
+    mInfo = info; side = info.side; inMatch = true; snaps.length = 0; replay = null; if (RF.bgmDuck) RF.bgmDuck(0.25); lastPhase = ''; lastCount = 0;
     RF.closeModal(); $('reveal').classList.add('hidden');
     $('scr-match').classList.remove('hidden'); $('resultPanel').classList.add('hidden'); $('menuPanel').classList.add('hidden'); $('goalfx').classList.add('hidden');
     banner('');
@@ -200,13 +200,40 @@
     RF.sfx('tap');
   }
   function endMatchUI() {
-    inMatch = false; stopReplay(); $('scr-match').classList.add('hidden'); $('rotate').classList.add('hidden');
+    inMatch = false; stopReplay(); cancelAnimationFrame(confettiRaf); if (RF.bgmDuck) RF.bgmDuck(1); $('scr-match').classList.add('hidden'); $('rotate').classList.add('hidden');
     try { if (wake) wake.release(); } catch (e) { /* noop */ } wake = null;
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* noop */ }
     releaseAll();
   }
   const fmt = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
+  // ───────────── 경기 종료 연출: 경기 요약(득점 기록·슈팅/패스/점유율·MVP) + 승리 폭죽 + 팡파르 ─────────────
+  function renderSummary(st, kind) {
+    const goals = $('resGoals'), stats = $('resStats'), mvp = $('resMvp');
+    goals.innerHTML = stats.innerHTML = ''; mvp.classList.add('hidden');
+    if (!st) return;
+    const me = side, op = 1 - side;
+    if (st.goals && st.goals.length) goals.innerHTML = '<div class="rg-h">⚽ 득점 기록</div>' + st.goals.map((g) => `<div class="rg ${g.side === me ? 'mine' : 'opp'}"><span>${g.min}'</span><b>${g.by ? '#' + g.num + ' ' + esc(g.by) : '득점'}${g.own ? ' (자책)' : ''}</b><i>${g.side === me ? '우리' : '상대'}</i></div>`).join('');
+    const row = (label, a, b, suf = '') => { const t = Math.max(1, a + b); return `<div class="rs"><b>${a}${suf}</b><div class="bar"><i style="width:${(a / t) * 100}%"></i></div><span>${label}</span><div class="bar o"><i style="width:${(b / t) * 100}%"></i></div><b>${b}${suf}</b></div>`; };
+    stats.innerHTML = row('슈팅', st.shots[me], st.shots[op]) + row('패스', st.passes[me], st.passes[op]) + row('점유율', st.poss[me], st.poss[op], '%');
+    if (st.mvp) { mvp.classList.remove('hidden'); mvp.innerHTML = `<small>⭐ MVP</small><b>#${st.mvp.num} ${esc(st.mvp.name)}</b><span>${st.mvp.side === me ? '우리 팀' : '상대 팀'} · ${st.mvp.goals}골 ${st.mvp.shots}슈팅</span>`; }
+  }
+  let confettiRaf = 0;
+  function resultFx(kind) {
+    RF.sfx(kind === 'win' ? 'win' : kind === 'lose' ? 'lose' : 'draw');
+    const cv = $('confetti'); cancelAnimationFrame(confettiRaf); const c = cv.getContext('2d'); c.clearRect(0, 0, cv.width, cv.height);
+    if (kind !== 'win') return;
+    cv.width = innerWidth; cv.height = innerHeight;
+    const cols = ['#2cff8a', '#19c3ff', '#ffc53d', '#ff4d6a', '#b65cff', '#fff'];
+    const ps = Array.from({ length: 140 }, () => ({ x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * 0.6, vx: (Math.random() - 0.5) * 120, vy: 140 + Math.random() * 220, s: 5 + Math.random() * 7, r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 9, c: cols[(Math.random() * cols.length) | 0] }));
+    let last = performance.now(), t0 = last;
+    const f = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now; c.clearRect(0, 0, cv.width, cv.height);
+      for (const p of ps) { p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; c.save(); c.translate(p.x, p.y); c.rotate(p.r); c.fillStyle = p.c; c.globalAlpha = Math.max(0, 1 - (now - t0) / 5200); c.fillRect(-p.s / 2, -p.s / 3, p.s, p.s * 0.6); c.restore(); }
+      if (now - t0 < 5200) confettiRaf = requestAnimationFrame(f); else c.clearRect(0, 0, cv.width, cv.height);
+    };
+    confettiRaf = requestAnimationFrame(f);
+  }
   function onMatchEnd(d) {
     if (!inMatch) return;
     const you = d.you, win = d.winner === you, draw = d.winner === -1;
@@ -221,7 +248,9 @@
     if (d.reward) extra = `💰 +${RF.won(d.reward.amount)} 획득! (잔액 ${RF.won(d.reward.bal)})`;
     else if (d.stake) extra = d.pay > 0 ? `💰 내기 승리! +${RF.won(d.stake)} (판돈 ${RF.won(d.stake * 2)} 획득)` : d.pay < 0 ? `💸 내기 패배 -${RF.won(d.stake)}` : `🤝 무승부 — 판돈 ${RF.won(d.stake)} 환급`;
     if (extra) { const rw = document.createElement('div'); rw.id = 'resReward'; rw.className = 'res-reward'; rw.textContent = extra; $('resNote').after(rw); }
-    setTimeout(() => { $('resultPanel').classList.remove('hidden'); banner(''); $('countdown').classList.add('hidden'); }, d.forfeit ? 0 : 1200);
+    renderSummary(d.stats, draw ? 'draw' : win ? 'win' : 'lose');
+    if (!d.forfeit) banner('🏁 FULL TIME');
+    setTimeout(() => { $('resultPanel').classList.remove('hidden'); banner(''); $('countdown').classList.add('hidden'); resultFx(draw ? 'draw' : win ? 'win' : 'lose'); }, d.forfeit ? 0 : 1200);
     RF.sfx('end'); releaseAll();
   }
   $('resAgain').addEventListener('click', () => {
@@ -289,12 +318,12 @@
     const frames = snaps.slice(Math.max(0, n - Math.ceil(REPLAY_TICKS / 2) - 1));
     replay = { frames, k: frames[0].k, kEnd: frames[frames.length - 1].k, at: performance.now() + REPLAY_DELAY, last: 0, on: false, t0: 0, beat: 0.4 };
   }
-  function stopReplay() { if (replay && replay.on && RF.goalStop) RF.goalStop(); replay = null; const t = $('replayTag'); if (t) t.classList.add('hidden'); const m = $('scr-match'); m.classList.remove('replaying'); m.style.transform = ''; }
+  function stopReplay() { if (replay && replay.on) { if (RF.goalStop) RF.goalStop(); if (RF.bgmDuck && inMatch) RF.bgmDuck(0.25); } replay = null; const t = $('replayTag'); if (t) t.classList.add('hidden'); const m = $('scr-match'); m.classList.remove('replaying'); m.style.transform = ''; }
   function replayFrame(now, live) {
     if (!replay) return live;
     if (now < replay.at) return live;
     if (live.cur.ph === 'play' || live.cur.ph === 'ended') { stopReplay(); return live; }
-    if (!replay.on) { replay.on = true; replay.last = now; replay.t0 = now; replay.beat = RF.goalSong ? (RF.goalSong() || 0.4) : 0.4; $('replayFace').textContent = FACES[Math.floor(Math.random() * FACES.length)]; $('replayTag').classList.remove('hidden'); $('scr-match').classList.add('replaying'); }
+    if (!replay.on) { replay.on = true; replay.last = now; if (RF.bgmDuck) RF.bgmDuck(0); replay.t0 = now; replay.beat = RF.goalSong ? (RF.goalSong() || 0.4) : 0.4; $('replayFace').textContent = FACES[Math.floor(Math.random() * FACES.length)]; $('replayTag').classList.remove('hidden'); $('scr-match').classList.add('replaying'); }
     const dt = Math.min(0.05, (now - replay.last) / 1000); replay.last = now;
     const remain = replay.kEnd - replay.k;
     replay.k += dt * 60 * REPLAY_SPEED;

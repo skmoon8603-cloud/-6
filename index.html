@@ -16,7 +16,7 @@
 
   <header id="topbar">
     <div class="logo">RANDOM<b>FOOTBALL</b></div>
-    <div class="topr"><div id="bal" class="balchip">💰 0원</div><div id="conn" class="conn off"><i></i><span id="connTxt">연결 중…</span></div></div>
+    <div class="topr"><button id="btnBgm" class="bgm-btn" aria-label="배경음악">🎵</button><div id="bal" class="balchip">💰 0원</div><div id="conn" class="conn off"><i></i><span id="connTxt">연결 중…</span></div></div>
   </header>
 
   <main id="screens">
@@ -166,10 +166,14 @@
       </div>
     </div>
     <div id="resultPanel" class="overlay hidden">
+      <canvas id="confetti"></canvas>
       <div class="sheet result">
         <div id="resTitle" class="res-title">WIN</div>
         <div id="resScore" class="res-score">0 : 0</div>
         <div id="resNote" class="tiny"></div>
+        <div id="resMvp" class="res-mvp hidden"></div>
+        <div id="resGoals" class="res-goals"></div>
+        <div id="resStats" class="res-stats"></div>
         <div class="row">
           <button id="resAgain" class="btn primary">다시 하기</button>
           <button id="resLobby" class="btn">로비로</button>

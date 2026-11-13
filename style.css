@@ -315,3 +315,23 @@ input{font:inherit;color:inherit}
 #scr-match.replaying::after{content:"";position:absolute;inset:0;z-index:23;pointer-events:none;box-shadow:inset 0 0 18vh 4vh #ff1744aa;background:radial-gradient(ellipse at center,transparent 55%,#2a000866)}
 #scr-match.replaying #cv{filter:saturate(1.35) contrast(1.1)}
 #scr-match.replaying #controls{opacity:.25}
+
+/* 경기 종료 요약 */
+#confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.sheet.result{position:relative;z-index:2;max-height:94vh;overflow:auto}
+.res-mvp{display:flex;flex-direction:column;align-items:center;margin:8px 0;padding:8px;border-radius:14px;background:linear-gradient(90deg,#ffc53d22,#ff4d6a22);border:1px solid #ffc53d66}
+.res-mvp small{color:var(--gold);font-weight:800;letter-spacing:.15em} .res-mvp b{font-size:17px} .res-mvp span{font-size:11px;color:var(--mut)}
+.res-goals{margin:6px 0;text-align:left;font-size:12px}
+.rg-h{color:var(--mut);margin-bottom:4px;text-align:center}
+.rg{display:flex;gap:8px;align-items:center;padding:3px 8px;border-radius:8px;margin-bottom:3px;background:#ffffff0a}
+.rg span{width:32px;color:var(--mut)} .rg b{flex:1} .rg i{font-style:normal;font-size:10px;padding:1px 6px;border-radius:6px}
+.rg.mine i{background:#2cff8a22;color:var(--acc)} .rg.opp i{background:#ff4d6a22;color:#ff8ea1}
+.res-stats{margin:8px 0}
+.rs{display:grid;grid-template-columns:34px 1fr 52px 1fr 34px;gap:4px;align-items:center;font-size:12px;margin:5px 0}
+.rs span{text-align:center;color:var(--mut);font-size:11px} .rs b{text-align:center}
+.rs .bar{height:8px;background:#ffffff14;border-radius:4px;overflow:hidden;display:flex;justify-content:flex-end}
+.rs .bar.o{justify-content:flex-start} .rs .bar i{display:block;height:100%;background:var(--acc);border-radius:4px;animation:barIn .8s both}
+.rs .bar.o i{background:#ff4d6a}
+@keyframes barIn{from{width:0!important}}
+.bgm-btn{width:34px;height:34px;border-radius:50%;background:#ffffff14;border:1px solid var(--line);font-size:15px;margin-right:6px}
+.bgm-btn.off{opacity:.45;filter:grayscale(1)}

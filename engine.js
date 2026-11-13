@@ -58,6 +58,8 @@ class Match {
       }
     }
     this.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, last: -1, lastSide: -1, owner: -1 };
+    this.stats = { shots: [0, 0], passes: [0, 0], poss: [0, 0], goals: [] }; // 경기 기록 (결과 화면용)
+    this.pst = this.players.map(() => ({ shots: 0, goals: 0 }));
     this.kickTeam = this.rng() < 0.5 ? 0 : 1;
     this.phase = 'countdown';
     this.phaseT = K.COUNTDOWN;
@@ -124,6 +126,18 @@ class Match {
     this.stepPlay(dt);
   }
 
+  /** 결과 화면용 경기 요약: 슈팅/패스/점유율, 득점 기록, MVP */
+  summary() {
+    const s = this.stats, tot = Math.max(1, s.poss[0] + s.poss[1]);
+    let best = null, bs = 0;
+    this.players.forEach((p, i) => { const sc = this.pst[i].goals * 4 + this.pst[i].shots; if (sc > bs) { bs = sc; best = p; } });
+    return {
+      shots: s.shots.slice(), passes: s.passes.slice(), poss: [Math.round((s.poss[0] / tot) * 100), 100 - Math.round((s.poss[0] / tot) * 100)],
+      goals: s.goals.map((g) => ({ ...g })),
+      mvp: best ? { name: this.roster[best.side][best.slot].name, num: this.roster[best.side][best.slot].num, side: best.side, goals: this.pst[best.i].goals, shots: this.pst[best.i].shots } : null,
+    };
+  }
+
   finish() {
     this.phase = 'ended';
     const [a, b] = this.score;
@@ -154,6 +168,7 @@ class Match {
     }
     for (const p of this.players) this.movePlayer(p, dt);
     this.separate();
+    const ow = this.ball.owner >= 0 ? this.players[this.ball.owner] : null; if (ow) this.stats.poss[ow.side]++;
     this.moveBall(dt, true);
   }
 
@@ -261,6 +276,8 @@ class Match {
     const lp = b.last >= 0 ? this.players[b.last] : null;
     const own = lp && lp.side !== scorer;
     this.phase = 'goal'; this.phaseT = K.GOAL_PAUSE;
+    this.stats.goals.push({ side: scorer, by: lp ? this.roster[lp.side][lp.slot].name : '', num: lp ? this.roster[lp.side][lp.slot].num : 0, own: !!own, min: Math.max(1, Math.ceil((K.MATCH_SECONDS - this.timeLeft) / K.MATCH_SECONDS * 90)) });
+    if (lp && !own) this.pst[lp.i].goals++;
     this.events.push({
       type: 'goal', side: scorer, score: [this.score[0], this.score[1]],
       by: lp ? this.roster[lp.side][lp.slot].name : '', num: lp ? this.roster[lp.side][lp.slot].num : 0, own: !!own,
@@ -371,6 +388,7 @@ class Match {
     ang += (this.rng() - 0.5) * 2 * (0.015 + ((100 - p.st.sht) / 100) * 0.11 + p.aiNoise);
     const speed = (380 + p.st.sht * 5) * (0.5 + 0.5 * power);
     this.kick(p, ang, speed);
+    this.stats.shots[p.side]++; this.pst[p.i].shots++;
     return true;
   }
 
@@ -407,7 +425,7 @@ class Match {
     const tx = best.x + best.vx * lead, ty = best.y + best.vy * lead;
     let ang = Math.atan2(ty - p.y, tx - p.x);
     ang += (this.rng() - 0.5) * 2 * (0.01 + ((100 - p.st.pas) / 100) * 0.07 + p.aiNoise);
-    this.kick(p, ang, spd);
+    this.kick(p, ang, spd); this.stats.passes[p.side]++;
     const tm = this.teams[p.side];
     tm.receiver = best.i; tm.receiverUntil = this.tick + 100;
     if (!tm.bot && tm.ctrl === p.slot) tm.ctrl = best.slot; // 수신자로 자동 전환
