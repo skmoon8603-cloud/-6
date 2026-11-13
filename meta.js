@@ -401,13 +401,14 @@
       const r = await fetch(kind === 'register' ? '/api/register' : '/api/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, legacyToken: legacy || undefined }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
-        const E = { bad_username: '아이디는 영문 소문자·숫자·_ 3~16자로 만들어주세요', bad_password: '비밀번호는 6자 이상으로 해주세요', exists: '이미 있는 아이디예요', bad_login: '아이디 또는 비밀번호가 틀렸어요', locked: '로그인 실패가 많아 5분간 잠겼어요', too_many_requests: '시도가 너무 많아요. 잠시 후 다시!' };
+        const E = { bad_username: '아이디는 2~20자로 만들어주세요', bad_password: '비밀번호는 6자 이상으로 해주세요', exists: '이미 있는 아이디예요', bad_login: '아이디 또는 비밀번호가 틀렸어요', locked: '로그인 실패가 많아 5분간 잠겼어요', too_many_requests: '시도가 너무 많아요. 잠시 후 다시!' };
         throw new Error(E[d.error] || '실패했어요. 다시 시도해주세요');
       }
-      S.auth = d.session; LS.set('auth', d.session); LS.del('token'); LS.del('cid');
+      S.auth = d.session; LS.set('auth', d.session); LS.set('lastid', username); LS.del('token'); LS.del('cid');
       finishLogin(d.account);
     } catch (e) { msg.textContent = e.message === 'Failed to fetch' ? '서버에 연결할 수 없습니다' : e.message; }
   }
+  $('lgId').value = LS.get('lastid', '');
   $('btnSignin').addEventListener('click', () => doPw('signin'));
   $('btnSignup').addEventListener('click', () => doPw('register'));
   $('lgPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') doPw('signin'); });

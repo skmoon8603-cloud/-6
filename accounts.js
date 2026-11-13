@@ -8,7 +8,8 @@ const K = require('./const');
 const I = require('./inventory');
 const crypto = require('crypto');
 const scrypt = (pw, salt) => new Promise((res, rej) => crypto.scrypt(pw, salt, 32, (e, k) => (e ? rej(e) : res(k))));
-const USER_RE = /^[a-z0-9_]{3,16}$/;
+const normUser = (n) => String(n || '').normalize('NFC').trim().toLowerCase();
+const validUser = (u) => u.length >= 2 && u.length <= 20 && !/[\u0000-\u001f\u007f]/.test(u);
 const fails = new Map(); // 아이디별 로그인 실패 제한 { n, until }
 
 const STAKES = [0, 1000, 2000, 5000, 10000];
@@ -39,15 +40,15 @@ class Accounts {
 
   /** 아이디/비밀번호 회원가입. 비밀번호는 scrypt 해시로만 저장한다. */
   async register(username, password, legacyToken) {
-    const u = String(username || '').trim().toLowerCase();
-    if (!USER_RE.test(u)) return { error: 'bad_username' };
+    const u = normUser(username);
+    if (!validUser(u)) return { error: 'bad_username' };
     if (typeof password !== 'string' || password.length < 6 || password.length > 64) return { error: 'bad_password' };
     const salt = crypto.randomBytes(16);
     const hash = (await scrypt(password, salt)).toString('base64');
     const id = 'u-' + u;
     return this.store.txn([id], (m) => {
       if (m[id]) return { error: 'exists' };
-      const a = m[id] = { id, email: '', name: u, nick: u.slice(0, 12), bal: K.START_BAL, inv: {}, pulls: 0, locked: null, created: Date.now(), pw: { salt: salt.toString('base64'), hash } };
+      const a = m[id] = { id, email: '', name: u, nick: cleanNick(u) || 'PLAYER', bal: K.START_BAL, inv: {}, pulls: 0, locked: null, created: Date.now(), pw: { salt: salt.toString('base64'), hash } };
       const old = legacyToken ? I.decode(legacyToken) : null;
       if (old) { a.inv = old.inv; a.pulls = old.pulls; a.bal = Math.min(old.bal, 20000); a.imported = true; }
       return { acct: pub(a) };
@@ -56,8 +57,8 @@ class Accounts {
 
   /** 아이디/비밀번호 로그인 (5회 연속 실패 시 5분 잠금) */
   async signin(username, password) {
-    const u = String(username || '').trim().toLowerCase();
-    if (!USER_RE.test(u) || typeof password !== 'string' || password.length > 64) return { error: 'bad_login' };
+    const u = normUser(username);
+    if (!validUser(u) || typeof password !== 'string' || password.length > 64) return { error: 'bad_login' };
     const f = fails.get(u);
     if (f && f.until > Date.now()) return { error: 'locked' };
     const a = await this.store.get('u-' + u);
