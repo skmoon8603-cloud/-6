@@ -23,7 +23,7 @@
     socket = io({ auth: { token: RF.state.auth }, transports: ['websocket', 'polling'], reconnection: true, reconnectionDelay: 400, reconnectionDelayMax: 3000, timeout: 10000 });
     RF.socket = socket;
     socket.on('connect', () => {
-      setConn(true);
+      setConn(true); if (RF.checkVersion) RF.checkVersion(); // 서버 재시작/재배포 후 재접속 시 새 버전 확인
       if (session && session.code) {
         socket.emit('room:rejoin', { code: session.code }, (r) => {
           if (r && r.ok) {

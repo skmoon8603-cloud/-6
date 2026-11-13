@@ -493,3 +493,33 @@
   RF.teamAvg = teamAvg;
   loadCatalog();
 })();
+
+
+// ───────────── 새 버전 자동 새로고침 ─────────────
+// 서버가 새로 배포되면(/api/version 값이 바뀌면) 경기 중이 아닐 때 자동으로 새로고침한다.
+(function () {
+  const RF = window.RF; let cur = null, pending = false, timer = 0;
+  const vis = (id) => { const e = document.getElementById(id); return !!e && !e.classList.contains('hidden'); };
+  // 진행 중인 경기/방/뽑기 연출 중에는 새로고침하지 않는다
+  const busy = () => vis('scr-match') || vis('reveal') || (vis('scr-bounce') && !vis('bMenu') && !vis('bResult'));
+  async function check() {
+    try {
+      const r = await fetch('/api/version', { cache: 'no-store' }); if (!r.ok) return;
+      const v = (await r.json()).v; if (!v) return;
+      if (cur === null) { cur = v; return; }
+      if (v !== cur) pending = true;
+    } catch (e) { /* 서버 재시작 중: 다음에 다시 */ }
+    if (pending) apply();
+  }
+  function apply() {
+    if (!pending) return;
+    if (busy()) { clearTimeout(timer); timer = setTimeout(apply, 3000); return; }
+    pending = false;
+    try { RF.toast('🔄 새 버전이 나왔어요. 새로고침합니다…'); } catch (e) { /* noop */ }
+    setTimeout(() => location.reload(), 1200);
+  }
+  check(); setInterval(check, 45000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  addEventListener('focus', check); addEventListener('online', check);
+  RF.checkVersion = check;
+})();

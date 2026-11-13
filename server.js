@@ -14,6 +14,7 @@ const modPath = (n) => (fs.existsSync(path.join(__dirname, 'lib', n + '.js')) ? 
 const api = require(modPath('api'));
 const net = require(modPath('net'));
 const bounceNet = require(modPath('bouncenet'));
+const VERSION = require(modPath('version')).compute(path.join(__dirname, 'public'), __dirname);
 const auth = require(modPath('auth'));
 const { createStore } = require(modPath('store'));
 const { Accounts } = require(modPath('accounts'));
@@ -46,10 +47,11 @@ app.get('/api/me', A.me);
 app.post('/api/pull', A.pull);
 app.post('/api/nick', A.nick);
 app.post('/api/attend', A.attend);
+app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION }); });
 
 const PUB = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUB, 'index.html'))) {
-  app.use(express.static(PUB, { maxAge: '5m', extensions: ['html'] }));
+  app.use(express.static(PUB, { maxAge: 0, etag: true, extensions: ['html'], setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));
 } else {
   // 평평한 구조: 클라이언트 파일만 공개 (server.js 등은 노출하지 않음)
   const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js'];

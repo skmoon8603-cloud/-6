@@ -54,6 +54,8 @@ function body(req) { return new Promise((res) => { let b = ''; req.on('data', (c
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/socket.io/socket.io.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(SHIM); }
+  if (url.pathname === '/__test/ver') { global.__VER = url.searchParams.get('v'); res.writeHead(200); return res.end('ok'); }
+  if (url.pathname === '/api/version') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ v: global.__VER || 'dev' })); }
   if (url.pathname === '/api/catalog') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(api.catalogPayload())); }
   const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend };
   if (routes[url.pathname]) {
