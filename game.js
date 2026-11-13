@@ -5,7 +5,7 @@
   const R = RF.Render;
   R.init($('cv'), $('radar'));
 
-  let socket = null, room = null, session = LS.get('session', null);
+  let socket = null, room = null, session = LS.get('session', null), accountOn = false;
   let inMatch = false, mInfo = null, side = 0, lastPhase = '', lastCount = 0;
   const snaps = [];
   let loopOn = false, pingMs = 0;
@@ -20,12 +20,12 @@
 
   function connect() {
     if (typeof io === 'undefined') { setConn(false, '서버 스크립트 로드 실패'); RF.toast('서버에 연결할 수 없습니다. 새로고침 해주세요.', true); return; }
-    socket = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionDelay: 400, reconnectionDelayMax: 3000, timeout: 10000 });
+    socket = io({ auth: { token: RF.state.auth }, transports: ['websocket', 'polling'], reconnection: true, reconnectionDelay: 400, reconnectionDelayMax: 3000, timeout: 10000 });
     RF.socket = socket;
     socket.on('connect', () => {
       setConn(true);
       if (session && session.code) {
-        socket.emit('room:rejoin', { cid: RF.state.cid, code: session.code }, (r) => {
+        socket.emit('room:rejoin', { code: session.code }, (r) => {
           if (r && r.ok) {
             banner('');
             if (r.state !== 'match') whenReady(() => { if (!inMatch) RF.go('room'); });
@@ -41,7 +41,12 @@
       setConn(false, '재접속 중…');
       if (inMatch) banner('📡 연결이 끊겼습니다<br><small>재접속 중… (제한 시간 안에 돌아오면 경기가 이어집니다)</small>');
     });
-    socket.on('connect_error', () => setConn(false, '서버 연결 중…'));
+    socket.on('connect_error', (e) => { if (e && e.message === 'unauthorized') { RF.logout(true); return; } setConn(false, '서버 연결 중…'); });
+    socket.on('account', (a) => RF.setAccount(a));
+    socket.on('room:error', (d) => {
+      const nm = d.who ? d.who + ' 님' : '';
+      RF.toast(d.err === 'not_enough' ? `${nm} 잔액이 부족해서 내기를 시작할 수 없어요 (판돈 ${RF.won(d.stake)})` : d.err === 'locked' ? '다른 내기가 아직 정산 중이에요. 잠시 후 다시!' : '경기를 시작할 수 없습니다', true);
+    });
     socket.io.on('reconnect_attempt', () => setConn(false, '재접속 중…'));
 
     socket.on('room:state', (st) => { room = st; if (RF.screen === 'room' && !inMatch) renderRoom(); });
@@ -69,7 +74,7 @@
   }
 
   // ───────────── 방 만들기 / 입장 ─────────────
-  const ERR = { bad_code: '방 코드는 6~8자리 영문/숫자입니다', not_found: '해당 코드의 방이 없습니다', room_full: '이미 2명이 있는 방입니다', invalid: '요청이 올바르지 않습니다', server_busy: '서버가 가득 찼습니다. 잠시 후 다시 시도해주세요', use_rejoin: '이미 이 방에 참가 중입니다' };
+  const ERR = { bad_code: '방 코드는 6~8자리 영문/숫자입니다', not_found: '해당 코드의 방이 없습니다', room_full: '이미 2명이 있는 방입니다', invalid: '요청이 올바르지 않습니다', server_busy: '서버가 가득 찼습니다. 잠시 후 다시 시도해주세요', use_rejoin: '이미 이 방에 참가 중입니다', not_enough: '잔액이 부족합니다', host_only: '방장만 바꿀 수 있어요', server_error: '서버 오류. 잠시 후 다시 시도해주세요' };
   function needConn() { if (!socket || !socket.connected) { RF.toast('서버에 연결 중입니다. 잠시만요…', true); return true; } return false; }
   function enter(code) { session = { code }; LS.set('session', session); RF.go('room'); }
   function tryFullscreen() {
@@ -123,12 +128,28 @@
       html += `<div class="rp"><div class="av">${esc(p.name.slice(0, 1).toUpperCase())}</div><div class="info"><b>${esc(p.name)}${i === room.you ? ' (나)' : ''}</b><small>팀 평균 ${p.avg} · ${i === 0 ? '방장' : '참가자'}</small></div>${st}</div>`;
     }
     $('roomPlayers').innerHTML = html;
+    renderStake();
     const btn = $('btnReady');
     btn.textContent = me && me.ready ? '준비 취소' : room.state === 'ended' ? '다시 하기 (준비)' : '준비 완료';
     btn.disabled = !full;
     let hint = full ? '둘 다 ‘준비 완료’를 누르면 경기가 시작됩니다.' : '친구에게 코드를 알려주세요. 친구가 입장하면 준비 버튼이 켜집니다.';
     if (room.last) hint = `지난 경기 ${room.last.score[0]} : ${room.last.score[1]}${room.last.forfeit ? ' (기권승)' : ''} · ` + hint;
     $('roomHint').textContent = hint;
+  }
+  function renderStake() {
+    const box = $('stakeBox'); if (!box) return;
+    const host = room.you === 0, stakes = (RF.cat && RF.cat.stakes) || [0];
+    const lock = room.state === 'match';
+    let h = `<div class="lbl">💰 내기 금액 <small class="tiny">(이긴 사람이 판돈 전부 · 게임 속 가상 재화)</small></div><div class="chips" style="flex-wrap:wrap">`;
+    h += stakes.map((v) => `<button class="chip${room.stake === v ? ' on' : ''}" data-v="${v}" ${host && !lock ? '' : 'disabled'}>${v ? RF.won(v) : '내기 없음'}</button>`).join('');
+    h += '</div>';
+    h += room.stake ? `<div class="tiny">현재 판돈 ${RF.won(room.stake)} × 2 = <b>${RF.won(room.stake * 2)}</b> · 내 잔액 ${RF.won(RF.state.bal)}${RF.state.bal < room.stake ? ' <b style="color:#ff6b6b">(부족!)</b>' : ''}</div>` : '<div class="tiny">내기 없이 친선 경기</div>';
+    if (!host) h += '<div class="tiny">방장이 금액을 정해요. 준비를 누르면 시작할 때 판돈이 걸립니다.</div>';
+    box.innerHTML = h;
+    box.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => {
+      if (needConn()) return; RF.sfx('tap');
+      socket.emit('room:stake', { stake: Number(b.dataset.v) }, (r) => { if (!r || !r.ok) RF.toast(ERR[r && r.err] || '변경 실패', true); });
+    }));
   }
   $('btnReady').addEventListener('click', () => {
     if (needConn() || !room) return; RF.sfx('tap'); tryFullscreen();
@@ -195,12 +216,10 @@
     $('resNote').textContent = d.forfeit ? (win ? '상대가 경기를 떠나 기권승 처리되었습니다.' : '기권패 처리되었습니다.') : draw ? '무승부입니다. 한 판 더?' : win ? '축하합니다! 승리했어요 🎉' : '아쉽네요. 다시 도전해보세요!';
     $('resAgain').disabled = false; $('resAgain').textContent = '다시 하기';
     const old = document.getElementById('resReward'); if (old) old.remove();
-    if (d.reward && d.reward.token) { // 서버가 확정한 CPU 승리 보상
-      RF.setToken(d.reward.token);
-      const rw = document.createElement('div'); rw.id = 'resReward'; rw.className = 'res-reward';
-      rw.textContent = `💰 +${RF.won(d.reward.amount)} 획득! (잔액 ${RF.won(d.reward.bal)})`;
-      $('resNote').after(rw);
-    }
+    let extra = '';
+    if (d.reward) extra = `💰 +${RF.won(d.reward.amount)} 획득! (잔액 ${RF.won(d.reward.bal)})`;
+    else if (d.stake) extra = d.pay > 0 ? `💰 내기 승리! +${RF.won(d.stake)} (판돈 ${RF.won(d.stake * 2)} 획득)` : d.pay < 0 ? `💸 내기 패배 -${RF.won(d.stake)}` : `🤝 무승부 — 판돈 ${RF.won(d.stake)} 환급`;
+    if (extra) { const rw = document.createElement('div'); rw.id = 'resReward'; rw.className = 'res-reward'; rw.textContent = extra; $('resNote').after(rw); }
     setTimeout(() => { $('resultPanel').classList.remove('hidden'); banner(''); $('countdown').classList.add('hidden'); }, d.forfeit ? 0 : 1200);
     RF.sfx('end'); releaseAll();
   }
@@ -377,5 +396,5 @@
   document.addEventListener('dblclick', (e) => { if (inMatch) e.preventDefault(); });
   window.addEventListener('beforeunload', () => { /* 새로고침 시 세션(방 코드)은 localStorage에 남아 자동 재접속 */ });
 
-  connect();
+  RF.hooks.onLogin = () => { if (!socket) connect(); };
 })();

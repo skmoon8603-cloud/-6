@@ -41,6 +41,7 @@
         <button id="btnPractice" class="btn ghost">🤖 CPU 연습 경기 (승리 시 +1,000원)</button>
       </div>
       <div id="homeStats" class="strip"></div>
+      <div class="center tiny" style="margin-top:8px"><span id="acctMail"></span> <button id="btnLogout" class="btn ghost" style="padding:4px 10px;font-size:12px">로그아웃</button></div>
       <p class="tiny center">PC: WASD/방향키 이동 · Space 슛(누르고 있으면 강하게) · E 패스 · Shift 질주 · Q 선수 변경</p>
     </section>
 
@@ -56,6 +57,7 @@
         <p id="roomHint" class="tiny">친구에게 코드를 알려주세요. 친구가 입장하면 둘 다 ‘준비 완료’를 누르면 시작합니다.</p>
       </div>
       <div id="roomPlayers" class="room-players"></div>
+      <div id="stakeBox" class="panel"></div>
       <div class="row">
         <button id="btnReady" class="btn primary big">준비 완료</button>
       </div>
@@ -164,6 +166,16 @@
   </section>
 
   <!-- 모달 / 오버레이 -->
+  <div id="login" class="overlay hidden" style="align-items:center">
+    <div class="sheet center" style="max-width:340px">
+      <div class="hero-title" style="font-size:30px">RANDOM<span>FOOTBALL</span></div>
+      <p class="tiny">구글 계정으로 로그인하면 내 선수와 잔액이 안전하게 저장돼요.<br>비밀번호는 저장하지 않습니다.</p>
+      <div id="gbtn" style="display:flex;justify-content:center;margin:14px 0;min-height:44px"></div>
+      <div id="devLogin" class="hidden"><input id="devName" class="inp" placeholder="테스트 이름" value="tester"><button class="btn">테스트 로그인</button></div>
+      <div id="loginMsg" class="tiny">불러오는 중…</div>
+    </div>
+  </div>
+
   <div id="modal" class="overlay hidden"><div class="sheet"><button id="modalX" class="x" aria-label="닫기">✕</button><div id="modalBody"></div></div></div>
 
   <div id="reveal" class="overlay hidden">

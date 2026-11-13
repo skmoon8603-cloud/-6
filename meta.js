@@ -20,31 +20,31 @@
     return Array.from(a, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 20);
   }
   const S = RF.state;
-  S.cid = LS.get('cid', null) || (LS.set('cid', (S.cid = rid())), S.cid);
-  S.name = LS.get('name', 'PLAYER' + Math.floor(100 + Math.random() * 900));
-  S.token = LS.get('token', '');
-  S.lineup = LS.get('lineup', null);
+  S.name = 'PLAYER';
+  S.auth = LS.get('auth', '');   // 서버가 발급한 로그인 세션 (비밀번호는 저장하지 않음)
+  S.uid = null;
+  S.lineup = null;
   S.inv = {};
   S.pulls = 0;
   S.bal = 0;
-  const SB = () => (RF.cat && Number.isInteger(RF.cat.startBal) ? RF.cat.startBal : 0);
-
-  function decodeToken(t) { // 표시용 복호화 (서명 검증은 서버가 수행)
-    try {
-      if (!t) return { inv: {}, pulls: 0, bal: SB() };
-      const p = t.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
-      const o = JSON.parse(decodeURIComponent(escape(atob(p + '==='.slice((p.length + 3) % 4)))));
-      return { inv: o.inv || {}, pulls: o.pulls || 0, bal: Number.isInteger(o.bal) ? o.bal : SB() };
-    } catch (e) { return { inv: {}, pulls: 0, bal: SB() }; }
-  }
-  function syncInv() { const d = decodeToken(S.token); S.inv = d.inv; S.pulls = d.pulls; S.bal = d.bal; updateBal(); }
+  S.locked = 0;
   const won = (n) => Number(n).toLocaleString('ko-KR') + '원';
   RF.won = won;
   function updateBal() { const el = $('bal'); if (el) el.textContent = '💰 ' + won(S.bal || 0); }
   const COST = () => (RF.cat && RF.cat.pullCost) || 1000;
-  /** 서버가 서명한 새 토큰 적용 (뽑기 결과 / CPU 승리 보상) */
-  RF.setToken = (t) => { S.token = t; LS.set('token', t); syncInv(); if (RF.ready && RF.screen) { if (RF.screen === 'gacha') renderGacha(); if (RF.screen === 'home') renderHome(); } };
-  syncInv();
+  /** 서버 API 호출 (로그인 세션 포함). 401 이면 다시 로그인 */
+  RF.api = async (path, body) => {
+    const r = await fetch(path, { method: body === undefined ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.auth }, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (r.status === 401) { RF.logout(true); throw new Error('로그인이 필요합니다'); }
+    return r;
+  };
+  /** 서버가 확정한 계정 정보(잔액/보관함/닉네임) 적용 */
+  RF.setAccount = (a) => {
+    S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email;
+    updateBal();
+    if (RF.ready && RF.cat) { sanitizeLineup(); if (RF.screen === 'gacha') renderGacha(); if (RF.screen === 'home') renderHome(); }
+  };
+  RF.logout = (silent) => { LS.del('auth'); if (RF.socket) { try { RF.socket.disconnect(); } catch (e) { /* noop */ } } LS.del('session'); if (silent) RF.toast('다시 로그인해주세요', true); setTimeout(() => location.reload(), silent ? 600 : 0); };
 
   // ───────────── 토스트 ─────────────
   let toastT;
@@ -123,9 +123,9 @@
       if (!p || p.pos !== slots[i] || !isOwned(id) || used.has(id)) id = starters[i];
       used.add(id); out.push(id);
     }
-    S.lineup = out; LS.set('lineup', out);
+    S.lineup = out; if (S.uid) LS.set('lineup_' + S.uid, out);
   }
-  RF.teamPayload = () => ({ cid: S.cid, name: S.name, token: S.token, lineup: S.lineup });
+  RF.teamPayload = () => ({ lineup: S.lineup });
   const teamAvg = () => Math.round(S.lineup.reduce((s, id) => s + effOvr(id), 0) / S.lineup.length);
 
   function jersey(p) {
@@ -191,7 +191,7 @@
 
   // ───────────── 홈 ─────────────
   function renderHome() {
-    $('nameInput').value = S.name;
+    $('nameInput').value = S.name; $('acctMail').textContent = S.email || '';
     $('homeTeam').innerHTML = S.lineup.map((id) => {
       const p = RF.byId[id], c = rarOf(p.rarity).color;
       return `<div class="mini" style="--rc:${c}"><b>${effOvr(id)}</b>${p.pos}</div>`;
@@ -200,8 +200,12 @@
     const have = RF.cat.players.filter((p) => !p.starter && isOwned(p.id)).length;
     $('homeStats').innerHTML = `<div><b>${won(S.bal)}</b>내 잔액</div><div><b>${have}/${total}</b>도감</div><div><b>${teamAvg()}</b>팀 평균</div>`;
   }
+  $('btnLogout').addEventListener('click', () => RF.logout(false));
+  let nickT;
   $('nameInput').addEventListener('input', (e) => {
-    S.name = e.target.value.replace(/[^\p{L}\p{N} _\-]/gu, '').slice(0, 12); LS.set('name', S.name);
+    S.name = e.target.value.replace(/[^\p{L}\p{N} _\-]/gu, '').slice(0, 12);
+    clearTimeout(nickT);
+    nickT = setTimeout(() => { if (S.name.trim()) RF.api('/api/nick', { nick: S.name }).catch(() => {}); }, 700);
   });
 
   // ───────────── 뽑기 ─────────────
@@ -223,14 +227,14 @@
     const orb = $('orb'); orb.classList.add('shake'); RF.sfx('shake'); $('orbHint').textContent = '추첨 중…';
     let data;
     try {
-      const [r] = await Promise.all([fetch('/api/pull', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, n }) }), sleep(1100)]);
+      const [r] = await Promise.all([RF.api('/api/pull', { n }), sleep(1100)]);
       if (!r.ok) throw new Error(r.status === 402 ? '잔액이 부족합니다' : r.status === 429 ? '너무 빠르게 뽑고 있어요. 잠시 후 다시!' : '서버 오류');
       data = await r.json();
     } catch (e) {
       orb.classList.remove('shake'); busy = false; renderGacha();
       RF.toast(e.message === 'Failed to fetch' ? '서버에 연결할 수 없습니다' : e.message, true); return;
     }
-    S.token = data.token; LS.set('token', S.token); syncInv(); sanitizeLineup();
+    RF.setAccount(data.acct); sanitizeLineup();
     const rank = (k) => RAR().findIndex((r) => r.key === k);
     const best = data.results.reduce((a, b) => (rank(RF.byId[b.id].rarity) > rank(RF.byId[a.id].rarity) ? b : a));
     const bc = rarOf(RF.byId[best.id].rarity).color;
@@ -373,11 +377,66 @@
     }
     LS.set('catalog', RF.cat);
     RF.cat.players.forEach((p) => { RF.byId[p.id] = p; });
-    syncInv();
+    await bootAuth();
+  }
+
+  // ───────────── 로그인 (구글) ─────────────
+  function finishLogin(acct) {
+    S.uid = acct.id;
+    S.lineup = LS.get('lineup_' + acct.id, null);
+    RF.setAccount(acct);
     sanitizeLineup();
+    $('login').classList.add('hidden');
     RF.ready = true;
     RF.go('home');
     if (RF.hooks.onReady) RF.hooks.onReady();
+    if (RF.hooks.onLogin) RF.hooks.onLogin();
+  }
+  async function doLogin(credential) {
+    const msg = $('loginMsg'); msg.textContent = '로그인 중…';
+    try {
+      const legacy = LS.get('token', '');
+      const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential, legacyToken: legacy || undefined }) });
+      if (!r.ok) throw new Error(r.status === 429 ? '시도가 너무 많아요. 잠시 후 다시!' : '로그인에 실패했습니다. 다시 시도해주세요.');
+      const d = await r.json();
+      S.auth = d.session; LS.set('auth', d.session); LS.del('token'); LS.del('cid');
+      finishLogin(d.account);
+    } catch (e) { msg.textContent = e.message === 'Failed to fetch' ? '서버에 연결할 수 없습니다' : e.message; }
+  }
+  function loadGsi() {
+    return new Promise((res, rej) => {
+      if (window.google && window.google.accounts) return res();
+      const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+      sc.onload = res; sc.onerror = () => rej(new Error('구글 로그인 스크립트를 불러오지 못했어요'));
+      document.head.appendChild(sc);
+    });
+  }
+  async function showLogin() {
+    $('login').classList.remove('hidden');
+    let cfg = {};
+    try { cfg = await (await fetch('/api/config')).json(); } catch (e) { $('loginMsg').textContent = '서버에 연결할 수 없습니다'; }
+    if (cfg.devLogin) {
+      const b = $('devLogin'); b.classList.remove('hidden');
+      b.onclick = () => doLogin('dev:' + ($('devName').value || 'tester'));
+    }
+    if (!cfg.googleClientId) { if (!cfg.devLogin) $('loginMsg').textContent = '서버에 구글 로그인이 아직 설정되지 않았어요 (관리자: GOOGLE_CLIENT_ID 필요)'; return; }
+    try {
+      await loadGsi();
+      google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: (resp) => doLogin(resp.credential), ux_mode: 'popup' });
+      google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 260, locale: 'ko' });
+      $('loginMsg').textContent = '';
+    } catch (e) { $('loginMsg').textContent = e.message; }
+  }
+  async function bootAuth() {
+    if (S.auth) {
+      try {
+        const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + S.auth } });
+        if (r.ok) return finishLogin((await r.json()).account);
+        if (r.status === 401) { LS.del('auth'); S.auth = ''; }
+        else throw new Error('HTTP ' + r.status);
+      } catch (e) { if (S.auth) { RF.toast('서버를 깨우는 중입니다…'); await sleep(3000); return bootAuth(); } }
+    }
+    await showLogin();
   }
   RF.refreshAll = () => { if (RF.ready && RF.screen) RF.go(RF.screen === 'room' ? 'room' : RF.screen); };
   RF.sanitizeLineup = sanitizeLineup;

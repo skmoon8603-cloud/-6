@@ -13,6 +13,9 @@ const fs = require('fs');
 const modPath = (n) => (fs.existsSync(path.join(__dirname, 'lib', n + '.js')) ? './lib/' + n : './' + n);
 const api = require(modPath('api'));
 const net = require(modPath('net'));
+const auth = require(modPath('auth'));
+const { createStore } = require(modPath('store'));
+const { Accounts } = require(modPath('accounts'));
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -25,10 +28,17 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/healthz', (_req, res) => res.json({ ok: true, ...game.stats(), uptime: Math.round(process.uptime()) }));
+const store = createStore();
+const accounts = new Accounts(store);
+const A = api.create({ accounts, auth });
+let game = { stats: () => ({}), stop() {} };
+app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.stats(), uptime: Math.round(process.uptime()) }));
 app.get('/api/catalog', (_req, res) => { res.set('Cache-Control', 'public, max-age=300'); res.json(api.catalogPayload()); });
-app.post('/api/pull', (req, res) => { const r = api.handlePull(req.body, req.ip); res.status(r.status).json(r.body); });
-app.post('/api/inventory', (req, res) => { const r = api.handleInventory(req.body, req.ip); res.status(r.status).json(r.body); });
+app.get('/api/config', A.config);
+app.post('/api/login', A.login);
+app.get('/api/me', A.me);
+app.post('/api/pull', A.pull);
+app.post('/api/nick', A.nick);
 
 const PUB = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUB, 'index.html'))) {
@@ -47,9 +57,13 @@ const io = new Server(server, {
   pingTimeout: 15000,
   maxHttpBufferSize: 1e5,
 });
-const game = net.attach(io);
-
-server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT}`));
+(async () => {
+  await store.init();
+  const n = await accounts.refundAllLocked();
+  if (n) console.log('[내기] 서버 재시작으로 중단된 내기 환급:', n);
+  game = net.attach(io, { accounts, auth });
+  server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
+})().catch((e) => { console.error('시작 실패', e); process.exit(1); });
 
 function shutdown() { game.stop(); io.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); }
 process.on('SIGTERM', shutdown);

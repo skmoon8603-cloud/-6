@@ -11,3 +11,9 @@ services:
         value: 20
       - key: INVENTORY_SECRET
         generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: DATABASE_URL
+        sync: false
