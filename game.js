@@ -194,6 +194,13 @@
     $('resScore').textContent = `${sc[0]} : ${sc[1]}`;
     $('resNote').textContent = d.forfeit ? (win ? '상대가 경기를 떠나 기권승 처리되었습니다.' : '기권패 처리되었습니다.') : draw ? '무승부입니다. 한 판 더?' : win ? '축하합니다! 승리했어요 🎉' : '아쉽네요. 다시 도전해보세요!';
     $('resAgain').disabled = false; $('resAgain').textContent = '다시 하기';
+    const old = document.getElementById('resReward'); if (old) old.remove();
+    if (d.reward && d.reward.token) { // 서버가 확정한 CPU 승리 보상
+      RF.setToken(d.reward.token);
+      const rw = document.createElement('div'); rw.id = 'resReward'; rw.className = 'res-reward';
+      rw.textContent = `💰 +${RF.won(d.reward.amount)} 획득! (잔액 ${RF.won(d.reward.bal)})`;
+      $('resNote').after(rw);
+    }
     setTimeout(() => { $('resultPanel').classList.remove('hidden'); banner(''); $('countdown').classList.add('hidden'); }, d.forfeit ? 0 : 1200);
     RF.sfx('end'); releaseAll();
   }

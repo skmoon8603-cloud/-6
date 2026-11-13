@@ -51,7 +51,7 @@ class Match {
           i: side * K.TEAM_SIZE + slot, side, slot, pos: meta.pos, st, id,
           x: 0, y: 0, vx: 0, vy: 0, ang: side === 0 ? 0 : Math.PI, stam: 100, tired: false,
           kickCd: 0, kickAnim: 0, hold: 0, think: 0, dx: 0, dy: 0, sp: false, boost: 1, catchCd: 0, diving: 0,
-          maxSpd: 150 + st.spd * 1.25,
+          maxSpd: 115 + st.spd * 0.95,
         };
         this.players.push(p);
         this.roster[side].push({ id, name: meta.name, num: meta.number, pos: meta.pos, rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovr });

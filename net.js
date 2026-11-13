@@ -46,7 +46,7 @@ function attach(io, opts = {}) {
   function mkPlayer(socket, d) {
     const st = I.load(d.token);
     const lineup = C.validateLineup(d.lineup, st.inv);
-    return { cid: d.cid, name: cleanName(d.name), socket, connected: true, ready: false, inv: st.inv, lineup, dcAt: 0 };
+    return { cid: d.cid, name: cleanName(d.name), socket, connected: true, ready: false, inv: st.inv, pulls: st.pulls, bal: st.bal, lineup, dcAt: 0 };
   }
 
   function publicState(room, forPl) {
@@ -116,7 +116,14 @@ function attach(io, opts = {}) {
     const m = room.match;
     room.state = 'ended';
     room.lastResult = { score: m.result.score, winner: m.result.winner, forfeit: false };
-    room.players.forEach((p, side) => { p.ready = false; emit(p, 'match:end', { ...room.lastResult, you: side }); });
+    // CPU 연습 경기에서 사람이 이기면 서버가 보상(잔액 +1000원)을 확정하고 서명된 토큰을 발급
+    let reward = null;
+    if (room.practice && m.result.winner === 0) {
+      const pl = room.players[0];
+      pl.bal = Math.min(1e9, (pl.bal || 0) + I.WIN_REWARD);
+      reward = { amount: I.WIN_REWARD, bal: pl.bal, token: I.encode(pl.inv, pl.pulls || 0, pl.bal) };
+    }
+    room.players.forEach((p, side) => { p.ready = false; emit(p, 'match:end', { ...room.lastResult, you: side, reward: side === 0 ? reward : null }); });
     pushState(room);
   }
 
@@ -220,7 +227,7 @@ function attach(io, opts = {}) {
       const pl = room && room.players.find((p) => p.socket === socket);
       if (!pl || room.state === 'match') return;
       const st = I.load(d && d.token);
-      pl.inv = st.inv; pl.lineup = C.validateLineup(d && d.lineup, st.inv);
+      pl.inv = st.inv; pl.pulls = st.pulls; pl.bal = st.bal; pl.lineup = C.validateLineup(d && d.lineup, st.inv);
       if (d && d.name) pl.name = cleanName(d.name);
       pl.ready = false;
       pushState(room);

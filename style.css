@@ -256,3 +256,8 @@ input{font:inherit;color:inherit}
   #score b{font-size:20px}
 }
 @media (min-width:720px){.screen{padding-left:max(14px,calc(50% - 300px));padding-right:max(14px,calc(50% - 300px))}}
+
+.topr{display:flex;align-items:center;gap:12px}
+.balchip{font-size:13px;font-weight:900;color:#2a1700;background:linear-gradient(180deg,#ffd45e,#f29a00);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.pcard.sel{outline-width:2px}
+.res-reward{margin:6px 0;font-size:20px;font-weight:900;color:var(--gold);animation:tagIn .6s both}

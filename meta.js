@@ -26,16 +26,24 @@
   S.lineup = LS.get('lineup', null);
   S.inv = {};
   S.pulls = 0;
+  S.bal = 0;
+  const SB = () => (RF.cat && Number.isInteger(RF.cat.startBal) ? RF.cat.startBal : 0);
 
   function decodeToken(t) { // 표시용 복호화 (서명 검증은 서버가 수행)
     try {
-      if (!t) return { inv: {}, pulls: 0 };
+      if (!t) return { inv: {}, pulls: 0, bal: SB() };
       const p = t.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
       const o = JSON.parse(decodeURIComponent(escape(atob(p + '==='.slice((p.length + 3) % 4)))));
-      return { inv: o.inv || {}, pulls: o.pulls || 0 };
-    } catch (e) { return { inv: {}, pulls: 0 }; }
+      return { inv: o.inv || {}, pulls: o.pulls || 0, bal: Number.isInteger(o.bal) ? o.bal : SB() };
+    } catch (e) { return { inv: {}, pulls: 0, bal: SB() }; }
   }
-  function syncInv() { const d = decodeToken(S.token); S.inv = d.inv; S.pulls = d.pulls; }
+  function syncInv() { const d = decodeToken(S.token); S.inv = d.inv; S.pulls = d.pulls; S.bal = d.bal; updateBal(); }
+  const won = (n) => Number(n).toLocaleString('ko-KR') + '원';
+  RF.won = won;
+  function updateBal() { const el = $('bal'); if (el) el.textContent = '💰 ' + won(S.bal || 0); }
+  const COST = () => (RF.cat && RF.cat.pullCost) || 1000;
+  /** 서버가 서명한 새 토큰 적용 (뽑기 결과 / CPU 승리 보상) */
+  RF.setToken = (t) => { S.token = t; LS.set('token', t); syncInv(); if (RF.ready && RF.screen) { if (RF.screen === 'gacha') renderGacha(); if (RF.screen === 'home') renderHome(); } };
   syncInv();
 
   // ───────────── 토스트 ─────────────
@@ -190,7 +198,7 @@
     }).join('');
     const total = RF.cat.players.filter((p) => !p.starter).length;
     const have = RF.cat.players.filter((p) => !p.starter && isOwned(p.id)).length;
-    $('homeStats').innerHTML = `<div><b>${have}/${total}</b>도감</div><div><b>${S.pulls}</b>뽑기 횟수</div><div><b>${teamAvg()}</b>팀 평균</div>`;
+    $('homeStats').innerHTML = `<div><b>${won(S.bal)}</b>내 잔액</div><div><b>${have}/${total}</b>도감</div><div><b>${teamAvg()}</b>팀 평균</div>`;
   }
   $('nameInput').addEventListener('input', (e) => {
     S.name = e.target.value.replace(/[^\p{L}\p{N} _\-]/gu, '').slice(0, 12); LS.set('name', S.name);
@@ -200,19 +208,26 @@
   let busy = false;
   function renderGacha() {
     $('rates').innerHTML = RAR().map((r) => `<div class="rate" style="--rc:${r.color}"><i class="dot"></i><span style="width:34px">${r.name}</span><div class="bar2"><span style="width:${r.rate}%"></span></div><b>${r.rate}%</b></div>`).join('');
-    $('pullStat').textContent = `누적 뽑기 ${S.pulls}회 · 무료 · 서버 추첨`;
+    $('pullStat').textContent = `누적 뽑기 ${S.pulls}회 · 1회 ${won(COST())} · CPU 연습 경기 승리 시 +${won((RF.cat && RF.cat.winReward) || 1000)}`;
+    $('pull1').textContent = `1회 뽑기 · ${won(COST())}`;
+    $('pull10').textContent = `10회 연속 · ${won(COST() * 10)}`;
+    $('pull1').disabled = busy || S.bal < COST();
+    $('pull10').disabled = busy || S.bal < COST() * 10;
+    $('orbHint').textContent = S.bal < COST() ? '잔액 부족 — CPU를 이기면 1,000원!' : '탭해서 1회 뽑기';
   }
   async function doPull(n) {
-    if (busy) return; busy = true;
+    if (busy) return;
+    if (S.bal < COST() * n) { RF.toast(`잔액이 부족합니다 (${won(S.bal)}). CPU 연습 경기에서 이기면 ${won((RF.cat && RF.cat.winReward) || 1000)}을 드려요!`, true); return; }
+    busy = true;
     $('pull1').disabled = $('pull10').disabled = true;
     const orb = $('orb'); orb.classList.add('shake'); RF.sfx('shake'); $('orbHint').textContent = '추첨 중…';
     let data;
     try {
       const [r] = await Promise.all([fetch('/api/pull', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: S.token, n }) }), sleep(1100)]);
-      if (!r.ok) throw new Error(r.status === 429 ? '너무 빠르게 뽑고 있어요. 잠시 후 다시!' : '서버 오류');
+      if (!r.ok) throw new Error(r.status === 402 ? '잔액이 부족합니다' : r.status === 429 ? '너무 빠르게 뽑고 있어요. 잠시 후 다시!' : '서버 오류');
       data = await r.json();
     } catch (e) {
-      orb.classList.remove('shake'); busy = false; $('pull1').disabled = $('pull10').disabled = false; $('orbHint').textContent = '탭해서 1회 뽑기';
+      orb.classList.remove('shake'); busy = false; renderGacha();
       RF.toast(e.message === 'Failed to fetch' ? '서버에 연결할 수 없습니다' : e.message, true); return;
     }
     S.token = data.token; LS.set('token', S.token); syncInv(); sanitizeLineup();
@@ -223,7 +238,7 @@
     await sleep(350);
     orb.classList.remove('shake'); $('orbHint').textContent = '탭해서 1회 뽑기';
     await reveal(data.results, bc);
-    busy = false; $('pull1').disabled = $('pull10').disabled = false;
+    busy = false;
     renderGacha();
   }
   $('pull1').addEventListener('click', () => doPull(1));
@@ -339,18 +354,26 @@
   // ───────────── 초기화 ─────────────
   async function loadCatalog() {
     for (let tries = 0; ; tries++) {
+      let why = '';
       try {
-        const r = await fetch('/api/catalog'); if (!r.ok) throw new Error('bad');
+        const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 12000);
+        const r = await fetch('/api/catalog?t=' + Date.now(), { signal: ctl.signal }); clearTimeout(to);
+        if (!r.ok) { why = 'HTTP ' + r.status; throw new Error(why); }
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('json')) { why = '응답이 JSON이 아님(' + ct.split(';')[0] + ')'; throw new Error(why); }
         RF.cat = await r.json(); break;
       } catch (e) {
+        why = why || (e.name === 'AbortError' ? '12초 안에 응답 없음' : e.message);
         const cached = LS.get('catalog', null);
         if (cached) { RF.cat = cached; break; }
-        RF.toast(tries < 1 ? '서버에 연결 중…' : '서버를 깨우는 중입니다 (최대 1분)…');
+        RF.toast((tries < 1 ? '서버에 연결 중…' : '서버를 깨우는 중입니다 (최대 1분)…') + ' [' + why + ']');
+        console.warn('catalog load failed:', why);
         await sleep(3000);
       }
     }
     LS.set('catalog', RF.cat);
     RF.cat.players.forEach((p) => { RF.byId[p.id] = p; });
+    syncInv();
     sanitizeLineup();
     RF.ready = true;
     RF.go('home');
