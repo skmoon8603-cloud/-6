@@ -280,3 +280,6 @@ input{font:inherit;color:inherit}
 .bpad .bhit{font-size:16px;background:#2cff8a30;border-color:#2cff8a}
 .bpad .bhit.sm{background:#ff4d6a30;border-color:#ff4d6a}
 .bpad button.down{background:#ffffff55;transform:scale(.94)}
+#bScore .bn{font-size:11px;color:var(--mut);max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#bScore .bt{display:none}
+#scr-bounce .overlay{z-index:5}

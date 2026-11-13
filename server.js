@@ -13,6 +13,7 @@ const fs = require('fs');
 const modPath = (n) => (fs.existsSync(path.join(__dirname, 'lib', n + '.js')) ? './lib/' + n : './' + n);
 const api = require(modPath('api'));
 const net = require(modPath('net'));
+const bounceNet = require(modPath('bouncenet'));
 const auth = require(modPath('auth'));
 const { createStore } = require(modPath('store'));
 const { Accounts } = require(modPath('accounts'));
@@ -32,6 +33,7 @@ const store = createStore();
 const accounts = new Accounts(store);
 const A = api.create({ accounts, auth });
 let game = { stats: () => ({}), stop() {} };
+let bounce = { stop() {} };
 app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.stats(), uptime: Math.round(process.uptime()) }));
 app.get('/api/catalog', (_req, res) => { res.set('Cache-Control', 'public, max-age=300'); res.json(api.catalogPayload()); });
 app.get('/api/config', A.config);
@@ -48,7 +50,7 @@ const PUB = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUB, 'index.html'))) {
   app.use(express.static(PUB, { maxAge: '5m', extensions: ['html'] }));
 } else {
-  // 평평한 구조: 클라이언트 파일 5개만 공개 (server.js 등은 노출하지 않음)
+  // 평평한 구조: 클라이언트 파일만 공개 (server.js 등은 노출하지 않음)
   const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js'];
   app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
@@ -70,9 +72,10 @@ const io = new Server(server, {
     console.log('[지급] skmoon:', g.ok ? (g.already ? '이미 지급됨' : '모든 캐릭터 지급 완료') : `실패 (일치하는 계정 ${g.found}개)`);
   } catch (e) { console.error('[지급] 오류', e.message); }
   game = net.attach(io, { accounts, auth });
+  bounce = bounceNet.attach(io, { accounts });
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
 })().catch((e) => { console.error('시작 실패', e); process.exit(1); });
 
-function shutdown() { game.stop(); io.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); }
+function shutdown() { game.stop(); bounce.stop(); io.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

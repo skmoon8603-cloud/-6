@@ -20,6 +20,8 @@ module.exports = {
   BOT_SKILL: 0.55,        // CPU 상대 AI 실력 (0~1, 낮을수록 멍청)
   MATE_SKILL: 0.75,       // 내 팀 AI 팀원 실력
   PULL_COST: 1000,        // 뽑기 1회 가격 (게임 내 가상 재화 '원')
-  WIN_REWARD: 1000,       // CPU 연습경기 승리 보상
+  WIN_REWARD: 3000,       // 축구 CPU 연습경기 승리 보상
+  BOUNCE_REWARD: 1000,    // 원 바운스 AI 대결 승리 보상
+  BOUNCE_CPU_LEVEL: 0.55, // 원 바운스 AI 실력 (0~1)
   START_BAL: 0,           // 처음 시작 잔액 (0원: CPU를 이겨서 벌어야 함)
 };

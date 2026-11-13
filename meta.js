@@ -209,16 +209,16 @@
   let busy = false;
   function renderGacha() {
     $('rates').innerHTML = RAR().map((r) => `<div class="rate" style="--rc:${r.color}"><i class="dot"></i><span style="width:34px">${r.name}</span><div class="bar2"><span style="width:${r.rate}%"></span></div><b>${r.rate}%</b></div>`).join('');
-    $('pullStat').textContent = `누적 뽑기 ${S.pulls}회 · 1회 ${won(COST())} · CPU 연습 경기 승리 시 +${won((RF.cat && RF.cat.winReward) || 1000)}`;
+    $('pullStat').textContent = `누적 뽑기 ${S.pulls}회 · 1회 ${won(COST())} · CPU 연습 경기 승리 시 +${won((RF.cat && RF.cat.winReward) || 3000)}`;
     $('pull1').textContent = `1회 뽑기 · ${won(COST())}`;
     $('pull10').textContent = `10회 연속 · ${won(COST() * 10)}`;
     $('pull1').disabled = busy || S.bal < COST();
     $('pull10').disabled = busy || S.bal < COST() * 10;
-    $('orbHint').textContent = S.bal < COST() ? '잔액 부족 — CPU를 이기면 1,000원!' : '탭해서 1회 뽑기';
+    $('orbHint').textContent = S.bal < COST() ? `잔액 부족 — CPU를 이기면 ${won((RF.cat && RF.cat.winReward) || 3000)}!` : '탭해서 1회 뽑기';
   }
   async function doPull(n) {
     if (busy) return;
-    if (S.bal < COST() * n) { RF.toast(`잔액이 부족합니다 (${won(S.bal)}). CPU 연습 경기에서 이기면 ${won((RF.cat && RF.cat.winReward) || 1000)}을 드려요!`, true); return; }
+    if (S.bal < COST() * n) { RF.toast(`잔액이 부족합니다 (${won(S.bal)}). CPU 연습 경기에서 이기면 ${won((RF.cat && RF.cat.winReward) || 3000)}을 드려요!`, true); return; }
     busy = true;
     $('pull1').disabled = $('pull10').disabled = true;
     const orb = $('orb'); orb.classList.add('shake'); RF.sfx('shake'); $('orbHint').textContent = '추첨 중…';
