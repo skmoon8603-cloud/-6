@@ -50,7 +50,7 @@ app.post('/api/attend', A.attend);
 app.get('/api/players', A.players);
 app.post('/api/admin/money', A.adminMoney);
 app.post('/api/admin/delete', A.adminDelete);
-app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION }); });
+app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION, goal: ['goal.mp3', 'public/goal.mp3'].some((f) => fs.existsSync(path.join(__dirname, f))) }); });
 
 const PUB = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUB, 'index.html'))) {

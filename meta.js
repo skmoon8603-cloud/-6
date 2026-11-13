@@ -99,7 +99,7 @@
   /** 골 노래 "티키 퐁크": 원본 음원은 쓸 수 없어서 직접 만든 효과음 + 음성 합성으로 부른다.
    *  /goal.mp3 파일을 올려두면 그 파일을 대신 재생한다. */
   let goalFile = null; // null: 확인 전, false: 없음, Audio: 있음
-  fetch('/goal.mp3', { method: 'HEAD' }).then((r) => { goalFile = r.ok && /audio|mpeg|octet/.test(r.headers.get('content-type') || '') ? new Audio('/goal.mp3') : false; }).catch(() => { goalFile = false; });
+  fetch('/api/version', { cache: 'no-store' }).then((r) => r.json()).then((j) => { goalFile = j && j.goal ? new Audio('/goal.mp3') : false; }).catch(() => { goalFile = false; });
   RF.goalSong = () => {
     if (muted) return;
     if (goalFile) { try { goalFile.currentTime = 0; goalFile.volume = 0.9; goalFile.play(); setTimeout(() => { try { goalFile.pause(); } catch (e) { /* noop */ } }, 9000); return; } catch (e) { /* 합성음으로 */ } }
