@@ -47,6 +47,9 @@ app.get('/api/me', A.me);
 app.post('/api/pull', A.pull);
 app.post('/api/nick', A.nick);
 app.post('/api/attend', A.attend);
+app.get('/api/players', A.players);
+app.post('/api/admin/money', A.adminMoney);
+app.post('/api/admin/delete', A.adminDelete);
 app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION }); });
 
 const PUB = path.join(__dirname, 'public');

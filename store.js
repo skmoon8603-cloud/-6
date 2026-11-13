@@ -25,6 +25,8 @@ class MemoryStore {
   }
   async findByNick(nick) { return [...this.acc.values()].filter((a) => String(a.nick || '').toLowerCase() === nick).map((a) => a.id); }
   async listLocked() { return [...this.acc.values()].filter((a) => a.locked).map((a) => a.id); }
+  async listAll() { return [...this.acc.values()].map(clone); }
+  async remove(id) { const run = async () => { this.acc.delete(id); }; const p = this.lock.then(run, run); this.lock = p.catch(() => {}); return p; }
   async close() { /* noop */ }
 }
 
@@ -72,6 +74,8 @@ class PgStore {
     const r = await this.pool.query("select id from accounts where data->'locked' is not null and data->>'locked' <> 'null'");
     return r.rows.map((x) => x.id);
   }
+  async listAll() { const r = await this.pool.query('select data from accounts'); return r.rows.map((x) => x.data); }
+  async remove(id) { await this.pool.query('delete from accounts where id = $1', [id]); }
   async close() { await this.pool.end(); }
 }
 

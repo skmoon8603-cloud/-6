@@ -295,3 +295,13 @@ input{font:inherit;color:inherit}
 .stakes button.on{border-color:var(--gold);background:#ffc53d22;color:var(--gold)}
 #bMenu .sheet,#bWait .sheet,#bConfirm .sheet{max-height:94vh;overflow:auto}
 #bMenu .tiny{margin:0 0 8px}
+
+/* 랭킹 */
+.rank-list{display:flex;flex-direction:column;gap:6px}
+.rk{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.rk.me{border-color:var(--acc2);background:#19c3ff14} .rk.top{border-color:var(--gold);background:#ffc53d14}
+.rk .rn{width:30px;text-align:center;font-weight:800;font-size:16px}
+.rk .nm{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk .nm small{display:block;font-size:11px;color:var(--mut);font-weight:500}
+.rk .bl{color:var(--gold);font-size:14px;white-space:nowrap}
+.rk .adm{display:flex;gap:4px} .rk .adm button{width:34px;height:34px;border-radius:10px;background:#ffffff12;border:1px solid var(--line);font-size:15px}

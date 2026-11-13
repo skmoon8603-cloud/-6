@@ -41,6 +41,7 @@
         <button id="btnPractice" class="btn ghost">🤖 CPU 연습 경기 (승리 시 +3,000원)</button>
         <button id="btnBounce" class="btn ghost" style="margin-top:8px">🏓 원 바운스 (AI · 친구 방 만들기 · 내기)</button>
       </div>
+      <div id="topLine" class="strip" style="margin-bottom:8px;display:none"></div>
       <div id="attend" class="panel"></div>
       <div id="homeStats" class="strip"></div>
       <div class="center tiny" style="margin-top:8px"><span id="acctMail"></span> <button id="btnLogout" class="btn ghost" style="padding:4px 10px;font-size:12px">로그아웃</button></div>
@@ -101,6 +102,14 @@
       <div id="dexGrid" class="grid"></div>
     </section>
 
+    <!-- 랭킹 / 플레이어 목록 -->
+    <section id="scr-rank" class="screen">
+      <div class="sec-title">🏆 돈 랭킹 <small id="rankSub"></small></div>
+      <div id="rankTop"></div>
+      <div id="rankList" class="rank-list"></div>
+      <p class="tiny center">전체 플레이어 목록이에요. 돈이 가장 많은 사람이 1위!</p>
+    </section>
+
     <!-- 편성 -->
     <section id="scr-team" class="screen">
       <div class="sec-title">출전 선수 편성 <small id="teamOvr"></small></div>
@@ -116,6 +125,7 @@
     <button data-go="box"><i>🎒</i><span>보관함</span></button>
     <button data-go="dex"><i>📖</i><span>도감</span></button>
     <button data-go="team"><i>📋</i><span>편성</span></button>
+    <button data-go="rank"><i>🏆</i><span>랭킹</span></button>
   </nav>
 
   <!-- 경기 화면 -->

@@ -24,6 +24,10 @@ function attStatus(a) {
   return { n: at.n, today, next: today || at.n >= K.ATTEND.length ? 0 : K.ATTEND[at.n] };
 }
 
+const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (모든 계정의 돈 관리·계정 삭제 권한)
+const isAdmin = (id) => id === ADMIN_ID;
+const nickOf = (a) => (a.id.startsWith('u-') ? a.id.slice(2) : a.nick || 'PLAYER');
+
 const STAKES = [0, 1000, 2000, 5000, 10000];
 const MAX_BAL = 1e9;
 const cleanNick = (n) => (String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 12));
@@ -34,6 +38,7 @@ const pub = (a) => ({
   locked: a.locked ? a.locked.stake : 0,
   secret: C.secretFor(a.inv), // 보유한 숨김(초월) 캐릭터의 실제 정보
   att: attStatus(a),
+  admin: isAdmin(a.id),
 });
 
 class Accounts {
@@ -130,6 +135,43 @@ class Accounts {
     });
   }
 
+  /** 모든 계정 목록 (돈 많은 순). 아이디(id)는 관리자에게만 알려준다. */
+  async players(viewerId) {
+    const admin = isAdmin(viewerId);
+    const list = (await this.store.listAll()).map((a) => ({
+      nick: nickOf(a), bal: a.bal || 0, owned: Object.keys(a.inv || {}).filter((k) => a.inv[k] > 0).length,
+      ...(admin ? { id: a.id, locked: !!a.locked } : {}), ...(a.id === viewerId ? { me: true } : {}),
+    }));
+    list.sort((x, y) => y.bal - x.bal || x.nick.localeCompare(y.nick));
+    return { players: list, admin };
+  }
+
+  /** [관리자] 계정의 돈을 설정(set)하거나 더하고/빼기(add) */
+  async adminMoney(adminId, targetId, mode, amount) {
+    if (!isAdmin(adminId)) return { error: 'forbidden' };
+    amount = Math.trunc(Number(amount));
+    if (!Number.isFinite(amount) || Math.abs(amount) > MAX_BAL || (mode !== 'set' && mode !== 'add')) return { error: 'bad_amount' };
+    return this.store.txn([targetId], (m) => {
+      const a = m[targetId]; if (!a) return { error: 'no_account' };
+      const before = a.bal;
+      a.bal = Math.max(0, Math.min(MAX_BAL, mode === 'set' ? amount : a.bal + amount));
+      console.log(`[관리자] ${adminId} → ${targetId} 돈 ${mode} ${amount}: ${before} → ${a.bal}`);
+      return { ok: true, id: targetId, nick: nickOf(a), before, bal: a.bal };
+    });
+  }
+
+  /** [관리자] 계정 삭제 (본인/내기 진행 중인 계정은 삭제 불가) */
+  async adminDelete(adminId, targetId) {
+    if (!isAdmin(adminId)) return { error: 'forbidden' };
+    if (targetId === adminId) return { error: 'self' };
+    const a = await this.store.get(targetId);
+    if (!a) return { error: 'no_account' };
+    if (a.locked) return { error: 'locked' };
+    await this.store.remove(targetId);
+    console.log(`[관리자] ${adminId} 이(가) 계정 삭제: ${targetId}`);
+    return { ok: true, id: targetId, nick: nickOf(a) };
+  }
+
   async reward(id, amount) {
     return this.store.txn([id], (m) => { const a = m[id]; if (!a) return null; a.bal = Math.min(MAX_BAL, a.bal + amount); return pub(a); });
   }
@@ -196,4 +238,4 @@ class Accounts {
   }
 }
 
-module.exports = { Accounts, STAKES, pub, cleanNick, setClock };
+module.exports = { Accounts, STAKES, pub, cleanNick, setClock, isAdmin, ADMIN_ID };

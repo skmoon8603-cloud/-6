@@ -95,6 +95,15 @@ function create({ accounts, auth }) {
       if (out.error) return { status: 401, body: out };
       return { status: 200, body: out };
     }),
+    players: authed(async (_req, uid) => ({ status: 200, body: await accounts.players(uid) })),
+    adminMoney: authed(async (req, uid) => {
+      const b = req.body || {}; const out = await accounts.adminMoney(uid, String(b.target || ''), b.mode, b.amount);
+      return { status: out.error === 'forbidden' ? 403 : out.error ? 400 : 200, body: out };
+    }),
+    adminDelete: authed(async (req, uid) => {
+      const out = await accounts.adminDelete(uid, String((req.body || {}).target || ''));
+      return { status: out.error === 'forbidden' ? 403 : out.error ? 400 : 200, body: out };
+    }),
     attend: authed(async (_req, uid) => {
       const out = await accounts.attend(uid);
       if (out.error === 'already') return { status: 409, body: out };

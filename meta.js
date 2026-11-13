@@ -41,7 +41,7 @@
   /** 서버가 확정한 계정 정보(잔액/보관함/닉네임) 적용 */
   RF.setAccount = (a) => {
     if (a.secret && RF.byId && RF.cat) for (const k in a.secret) { RF.byId[k] = a.secret[k]; const ix = RF.cat.players.findIndex((x) => x.id === k); if (ix >= 0) RF.cat.players[ix] = a.secret[k]; } // 보유한 초월 캐릭터의 실제 정보
-    S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email; S.att = a.att || null;
+    S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email; S.att = a.att || null; S.admin = !!a.admin;
     updateBal();
     if (RF.ready && RF.cat) { sanitizeLineup(); if (RF.screen === 'gacha') renderGacha(); if (RF.screen === 'home') renderHome(); }
   };
@@ -147,14 +147,14 @@
   };
 
   // ───────────── 화면 전환 ─────────────
-  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'room'];
+  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'rank', 'room'];
   RF.go = (name) => {
     if (!RF.cat && name !== 'home') { RF.toast('서버 데이터를 불러오는 중입니다', true); return; }
     if (name === 'home' && RF.hooks.inRoom && RF.hooks.inRoom()) name = 'room';
     SCREENS.forEach((s) => $('scr-' + s).classList.toggle('active', s === name));
     document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
     RF.screen = name;
-    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
+    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, rank: renderRank, room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
     const sc = $('scr-' + name); if (sc) sc.scrollTop = 0;
   };
   document.querySelectorAll('#nav button').forEach((b) => b.addEventListener('click', () => { RF.sfx('tap'); RF.go(b.dataset.go); }));
@@ -214,8 +214,58 @@
       } catch (e) { RF.toast('서버에 연결할 수 없습니다', true); b.disabled = false; }
     });
   }
+  // ───────────── 랭킹 / 플레이어 목록 / 관리자 ─────────────
+  let playersCache = null, playersAt = 0;
+  async function loadPlayers(force) {
+    if (!force && playersCache && Date.now() - playersAt < 15000) return playersCache;
+    try { const r = await RF.api('/api/players'); if (r.ok) { playersCache = await r.json(); playersAt = Date.now(); } } catch (e) { /* noop */ }
+    return playersCache;
+  }
+  RF.loadPlayers = loadPlayers;
+  const medal = (i) => (i === 0 ? '👑' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1);
+  function renderTopLine(d) {
+    const el = $('topLine'); if (!el || !d || !d.players.length) return;
+    const t = d.players[0], myRank = d.players.findIndex((p) => p.me) + 1;
+    el.style.display = ''; el.innerHTML = `<div><b>👑 ${esc(t.nick)}</b>돈 1위 · ${won(t.bal)}</div><div><b>${myRank ? myRank + '위' : '-'}</b>내 순위 (${d.players.length}명 중)</div>`;
+  }
+  async function renderRank() {
+    const list = $('rankList'); list.innerHTML = '<p class="tiny center">불러오는 중…</p>';
+    const d = await loadPlayers(true); if (!d) { list.innerHTML = '<p class="tiny center">불러오지 못했어요</p>'; return; }
+    $('rankSub').textContent = `${d.players.length}명${d.admin ? ' · 관리자' : ''}`;
+    list.innerHTML = d.players.map((p, i) => `<div class="rk${p.me ? ' me' : ''}${i === 0 ? ' top' : ''}">
+      <span class="rn">${medal(i)}</span><span class="nm">${esc(p.nick)}${p.me ? ' <small>(나)</small>' : ''}<small>보유 캐릭터 ${p.owned}</small></span>
+      <b class="bl">${won(p.bal)}</b>${d.admin ? `<span class="adm"><button data-money="${esc(p.id)}" data-nick="${esc(p.nick)}" data-bal="${p.bal}" aria-label="돈 관리">💰</button>${p.me ? '' : `<button data-del="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="계정 삭제">🗑</button>`}</span>` : ''}</div>`).join('');
+    list.querySelectorAll('[data-money]').forEach((b) => b.addEventListener('click', () => moneyModal(b.dataset.money, b.dataset.nick, +b.dataset.bal)));
+    list.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delModal(b.dataset.del, b.dataset.nick)));
+    renderTopLine(d);
+  }
+  async function adminCall(path, body) {
+    try { const r = await RF.api(path, body); const j = await r.json(); return { ok: r.ok, j }; } catch (e) { return { ok: false, j: { error: 'network' } }; }
+  }
+  const AERR = { forbidden: '권한이 없어요', bad_amount: '금액을 확인해 주세요', no_account: '이미 없는 계정이에요', self: '내 계정은 삭제할 수 없어요', locked: '내기 진행 중인 계정이라 지금은 삭제할 수 없어요', network: '서버에 연결할 수 없어요' };
+  function moneyModal(id, nick, bal) {
+    openModal(`<h3>💰 ${esc(nick)} 돈 관리</h3><p class="tiny">현재 ${won(bal)}</p>
+      <input id="admAmt" class="inp" inputmode="numeric" placeholder="금액 (숫자)" autocomplete="off">
+      <div class="row" style="margin-top:10px"><button id="admSet" class="btn primary">이 금액으로 설정</button><button id="admAdd" class="btn">+ 더하기</button><button id="admSub" class="btn">− 빼기</button></div>`);
+    const go = async (mode, sign) => {
+      const n = Math.trunc(Number(String($('admAmt').value).replace(/[^0-9]/g, ''))); if (!(n >= 0) || $('admAmt').value === '') return RF.toast('금액을 입력해 주세요', true);
+      const r = await adminCall('/api/admin/money', { target: id, mode, amount: sign * n });
+      if (r.ok) { closeModal(); RF.toast(`${nick}: ${won(r.j.before)} → ${won(r.j.bal)}`); renderRank(); } else RF.toast(AERR[r.j.error] || '실패했어요', true);
+    };
+    $('admSet').addEventListener('click', () => go('set', 1)); $('admAdd').addEventListener('click', () => go('add', 1)); $('admSub').addEventListener('click', () => go('add', -1));
+  }
+  function delModal(id, nick) {
+    openModal(`<h3>🗑 계정 삭제</h3><p class="tiny"><b>${esc(nick)}</b> 계정과 보유 캐릭터·잔액이 모두 사라지고 <b>되돌릴 수 없어요.</b></p>
+      <div class="row"><button id="admDel" class="btn danger">삭제하기</button><button id="admNo" class="btn">취소</button></div>`);
+    $('admNo').addEventListener('click', closeModal);
+    $('admDel').addEventListener('click', async () => {
+      const r = await adminCall('/api/admin/delete', { target: id });
+      if (r.ok) { closeModal(); RF.toast(`${nick} 계정을 삭제했어요`); renderRank(); } else RF.toast(AERR[r.j.error] || '실패했어요', true);
+    });
+  }
+
   function renderHome() {
-    renderAttend();
+    renderAttend(); loadPlayers().then(renderTopLine);
     $('nameInput').value = S.name; $('acctMail').textContent = S.email || '';
     $('homeTeam').innerHTML = S.lineup.map((id, i) => {
       const p = RF.byId[id], c = rarOf(p.rarity).color;
@@ -518,8 +568,10 @@
     try { RF.toast('🔄 새 버전이 나왔어요. 새로고침합니다…'); } catch (e) { /* noop */ }
     setTimeout(() => location.reload(), 1200);
   }
-  check(); setInterval(check, 45000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  // 관리자가 돈을 바꾸는 등 서버 쪽 변경이 내 화면에도 반영되도록 가끔 내 계정을 새로 받아온다
+  async function refreshMe() { if (busy() || !RF.state || !RF.state.auth) return; try { const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + RF.state.auth } }); if (r.ok) RF.setAccount((await r.json()).account); } catch (e) { /* noop */ } }
+  check(); setInterval(check, 45000); setInterval(refreshMe, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { check(); refreshMe(); } });
   addEventListener('focus', check); addEventListener('online', check);
   RF.checkVersion = check;
 })();

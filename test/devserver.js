@@ -57,7 +57,7 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/__test/ver') { global.__VER = url.searchParams.get('v'); res.writeHead(200); return res.end('ok'); }
   if (url.pathname === '/api/version') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ v: global.__VER || 'dev' })); }
   if (url.pathname === '/api/catalog') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(api.catalogPayload())); }
-  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend };
+  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend, '/api/players': A.players, '/api/admin/money': A.adminMoney, '/api/admin/delete': A.adminDelete };
   if (routes[url.pathname]) {
     const b = req.method === 'POST' ? await body(req) : undefined;
     const rq = { headers: req.headers, body: b, ip: req.socket.remoteAddress };
