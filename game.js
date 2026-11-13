@@ -306,7 +306,7 @@
   const JR = 54;
   joy.addEventListener('pointerdown', (e) => {
     if (joyId !== null) return; joyId = e.pointerId; joy.setPointerCapture(e.pointerId);
-    const r = $('controls').getBoundingClientRect();
+    const r = joy.getBoundingClientRect(); // 조이스틱은 #joy 안에 배치되므로 #joy 기준 좌표 (기존: #controls 기준이라 위로 어긋났음)
     jc = { x: e.clientX, y: e.clientY };
     base.style.left = e.clientX - r.left + 'px'; base.style.top = e.clientY - r.top + 'px'; base.classList.add('act');
     moveJoy(e); e.preventDefault();

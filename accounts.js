@@ -17,7 +17,8 @@ const MAX_BAL = 1e9;
 const cleanNick = (n) => (String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 12));
 
 const pub = (a) => ({
-  id: a.id, email: a.email, nick: a.nick, bal: a.bal, inv: a.inv, pulls: a.pulls,
+  // 닉네임은 로그인 아이디로 고정
+  id: a.id, email: a.email, nick: a.id.startsWith('u-') ? a.id.slice(2) : a.nick, bal: a.bal, inv: a.inv, pulls: a.pulls,
   locked: a.locked ? a.locked.stake : 0,
   secret: C.secretFor(a.inv), // 보유한 숨김(초월) 캐릭터의 실제 정보
 });
@@ -79,10 +80,8 @@ class Accounts {
   async get(id) { const a = await this.store.get(id); return a ? pub(a) : null; }
   async raw(id) { return this.store.get(id); }
 
-  async setNick(id, nick) {
-    nick = cleanNick(nick); if (!nick) return null;
-    return this.store.txn([id], (m) => { if (!m[id]) return null; m[id].nick = nick; return pub(m[id]); });
-  }
+  /** 닉네임은 아이디로 고정되어 변경할 수 없다 */
+  async setNick(id) { const a = await this.store.get(id); return a ? pub(a) : null; }
 
   /** n회 뽑기 (1회 PULL_COST 원). 서버 난수/서버 잔액으로만 결정 */
   async pull(id, n, rand01) {
@@ -146,7 +145,9 @@ class Accounts {
   /** 운영자 요청 1회성 지급: 닉네임이 정확히 일치하는 계정이 '한 개'일 때만, 모든 캐릭터를 1장(Lv.1)씩 지급. (이미 지급했으면 건너뜀) */
   async grantAllByNick(nick) {
     nick = String(nick).toLowerCase();
-    const ids = await this.store.findByNick(nick);
+    let ids = await this.store.findByNick(nick);
+    if (await this.store.get('u-' + nick) && !ids.includes('u-' + nick)) ids = [...ids, 'u-' + nick];
+    ids = [...new Set(ids)]; if (ids.includes('u-' + nick)) ids = ['u-' + nick]; // 아이디가 정확히 일치하는 계정 우선
     if (ids.length !== 1) return { ok: false, found: ids.length };
     const id = ids[0];
     return this.store.txn([id], (m) => {

@@ -51,6 +51,10 @@ const OVR_W = {
 const POSS = ['GK', 'DF', 'MF', 'FW'];
 // 직접 만든 캐릭터 (해당 등급의 기존 자리 id 를 대체). 능력치 gk=골키퍼 sta=체력
 const CUSTOM = {
+  C01: { name: '왕정훈', st: { gk: 14, sta: 54, def: 63, pas: 48, sht: 36, spd: 50, dri: 50 } }, // 일반 · 수비수
+  H01: { name: '박종모', st: { gk: 15, sta: 72, def: 60, pas: 72, sht: 62, spd: 74, dri: 82 } }, // 영웅(에픽) · 드리블형
+  H02: { name: '최범규', st: { gk: 14, sta: 70, def: 52, pas: 66, sht: 80, spd: 76, dri: 80 } }, // 영웅(에픽) · 드리블+슛
+
   T01: { name: '각성의 이지안', st: { gk: 100, sta: 100, def: 100, pas: 100, sht: 100, spd: 100, dri: 100 } },
   M01: { name: '김승현', st: { gk: 100, sta: 90, def: 70, pas: 70, sht: 70, spd: 80, dri: 67 } },
   M02: { name: '어느 2학년 형', st: { gk: 90, sta: 90, def: 90, pas: 90, sht: 90, spd: 90, dri: 90 } },
@@ -67,6 +71,7 @@ function ovrOf(pos, st) {
   for (const k in w) s += (st[k] || 0) * w[k];
   return Math.round(s);
 }
+const meanOf = (st) => { const k = Object.keys(st); return Math.round(k.reduce((a, x) => a + st[x], 0) / k.length); };
 const ovrBy = (st) => Object.fromEntries(POSS.map((q) => [q, ovrOf(q, st)]));
 const bestPos = (st) => POSS.slice().sort((a, b) => ovrOf(b, st) - ovrOf(a, st) || POSS.indexOf(a) - POSS.indexOf(b))[0];
 
@@ -119,7 +124,7 @@ function buildCatalog() {
   starters.forEach(([id, pos, name, num], i) => {
     const st = makeStats(pos, 44);
     list.push({
-      id, name, pos, rarity: 'common', number: num, stats: st, ovr: ovrOf(pos, st), ovrBy: ovrBy(st), starter: true,
+      id, name, pos, rarity: 'common', number: num, stats: st, ovr: meanOf(st), ovrBy: ovrBy(st), starter: true,
       c1: hsl(200 + i * 10, 20, 55), c2: '#e9eef5',
     });
   });
@@ -137,8 +142,9 @@ function buildCatalog() {
       const cu = CUSTOM[id];
       if (cu) { // 직접 만든 캐릭터로 교체 (개수는 그대로)
         item.name = cu.name; item.stats = { ...cu.st }; item.pos = bestPos(cu.st);
-        item.ovr = ovrOf(item.pos, item.stats); item.ovrBy = ovrBy(item.stats);
+        item.ovrBy = ovrBy(item.stats);
       }
+      item.ovr = meanOf(item.stats); // 보관함/도감에 보이는 점수 = 모든 능력치의 평균
       if (rar.hidden) item.hidden = true;
       list.push(item);
     }

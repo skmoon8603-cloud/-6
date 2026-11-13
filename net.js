@@ -47,7 +47,7 @@ function attach(io, { accounts, auth, autoloop = true }) {
     }
     return null;
   }
-  const lineupInfo = (ids) => ids.map((id, i) => { const m = C.BY_ID[id]; return { id, name: m.name, pos: C.SLOTS[i], rar: m.rarity, ovr: m.ovrBy[C.SLOTS[i]], c1: m.c1, c2: m.c2, num: m.number }; });
+  const lineupInfo = (ids) => ids.map((id, i) => { const m = C.BY_ID[id]; return { id, name: m.name, pos: C.SLOTS[i], rar: m.rarity, ovr: m.ovr, c1: m.c1, c2: m.c2, num: m.number }; });
 
   async function mkPlayer(socket, lineupReq) {
     const a = await accounts.get(socket.data.uid);
@@ -61,7 +61,7 @@ function attach(io, { accounts, auth, autoloop = true }) {
       you: room.players.indexOf(forPl),
       players: room.players.map((p) => ({
         name: p.name, ready: p.ready, connected: p.connected,
-        team: lineupInfo(p.lineup), avg: Math.round(p.lineup.reduce((s, id, i) => s + C.BY_ID[id].ovrBy[C.SLOTS[i]], 0) / p.lineup.length),
+        team: lineupInfo(p.lineup), avg: Math.round(p.lineup.reduce((s, id, i) => s + C.BY_ID[id].ovr, 0) / p.lineup.length),
       })),
       last: room.lastResult || null,
       graceMs: room.pauseDeadline ? Math.max(0, room.pauseDeadline - Date.now()) : 0,

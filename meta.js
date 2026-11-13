@@ -112,7 +112,7 @@
     for (const k in p.stats) o[k] = Math.min(100, Math.round(p.stats[k] * m));
     return o;
   };
-  const effOvr = (id, pos) => { const p = RF.byId[id]; const o = (p.ovrBy && p.ovrBy[pos || p.pos]) || p.ovr; return Math.min(100, Math.round(o * (1 + lvOf(id) * 0.02))); };
+  const effOvr = (id) => { const st = eff(id), k = Object.keys(st); return Math.round(k.reduce((a, x) => a + st[x], 0) / k.length); }; // 모든 능력치의 평균
   RF.isOwned = isOwned; RF.effOvr = effOvr;
 
   function sanitizeLineup() {
@@ -203,12 +203,7 @@
     $('homeStats').innerHTML = `<div><b>${won(S.bal)}</b>내 잔액</div><div><b>${have}/${total}</b>도감</div><div><b>${teamAvg()}</b>팀 평균</div>`;
   }
   $('btnLogout').addEventListener('click', () => RF.logout(false));
-  let nickT;
-  $('nameInput').addEventListener('input', (e) => {
-    S.name = e.target.value.replace(/[^\p{L}\p{N} _\-]/gu, '').slice(0, 12);
-    clearTimeout(nickT);
-    nickT = setTimeout(() => { if (S.name.trim()) RF.api('/api/nick', { nick: S.name }).catch(() => {}); }, 700);
-  });
+  $('nameInput').readOnly = true; // 닉네임은 아이디로 고정
 
   // ───────────── 뽑기 ─────────────
   let busy = false;

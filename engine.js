@@ -54,7 +54,7 @@ class Match {
           maxSpd: 115 + st.spd * 0.95,
         };
         this.players.push(p);
-        this.roster[side].push({ id, name: meta.name, num: meta.number, pos: C.SLOTS[slot], rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovrBy[C.SLOTS[slot]] });
+        this.roster[side].push({ id, name: meta.name, num: meta.number, pos: C.SLOTS[slot], rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovr });
       }
     }
     this.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, last: -1, lastSide: -1, owner: -1 };
