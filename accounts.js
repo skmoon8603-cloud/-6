@@ -19,6 +19,7 @@ const cleanNick = (n) => (String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').tri
 const pub = (a) => ({
   id: a.id, email: a.email, nick: a.nick, bal: a.bal, inv: a.inv, pulls: a.pulls,
   locked: a.locked ? a.locked.stake : 0,
+  secret: C.secretFor(a.inv), // 보유한 숨김(초월) 캐릭터의 실제 정보
 });
 
 class Accounts {

@@ -17,7 +17,7 @@ function catalogPayload() {
   return {
     rarities: C.RARITIES.map(({ key, name, rate, color }) => ({ key, name, rate, color })),
     slots: C.SLOTS, posName: C.POS_NAME, maxDup: C.MAX_DUP_LEVEL, pullCost: K.PULL_COST, winReward: K.WIN_REWARD,
-    stakes: STAKES, players: C.CATALOG,
+    stakes: STAKES, players: C.CATALOG.map(C.publicPlayer),
   };
 }
 

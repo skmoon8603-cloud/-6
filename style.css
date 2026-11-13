@@ -2,7 +2,7 @@
 :root{
   --bg:#0a1020; --bg2:#101a33; --panel:#141f3b; --panel2:#1a2848; --line:#27375f;
   --txt:#eaf1ff; --mut:#8fa0c8; --acc:#2cff8a; --acc2:#19c3ff; --danger:#ff4d6a; --gold:#ffc53d;
-  --r-common:#9aa7b8; --r-rare:#3fa9ff; --r-hero:#b65cff; --r-legend:#ffb81f; --r-myth:#ff3d6e;
+  --r-common:#9aa7b8; --r-rare:#3fa9ff; --r-hero:#b65cff; --r-legend:#ffb81f; --r-myth:#ff3d6e; --r-trans:#5cf2ff;
   --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
   --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
 }
@@ -91,11 +91,11 @@ input{font:inherit;color:inherit}
   border:2px solid var(--rc);box-shadow:0 0 0 1px #0006,0 6px 16px #0006;text-align:center;cursor:pointer;transition:transform .12s}
 .pcard:active{transform:scale(.97)}
 .pcard.r-common{--rc:var(--r-common)}.pcard.r-rare{--rc:var(--r-rare)}.pcard.r-hero{--rc:var(--r-hero)}
-.pcard.r-legend{--rc:var(--r-legend)}.pcard.r-myth{--rc:var(--r-myth)}
+.pcard.r-legend{--rc:var(--r-legend)}.pcard.r-myth{--rc:var(--r-myth)}.pcard.r-trans{--rc:var(--r-trans)}
 .pcard.r-rare{box-shadow:0 0 14px #3fa9ff55,0 6px 16px #0006}
 .pcard.r-hero{box-shadow:0 0 18px #b65cff77,0 6px 16px #0006;animation:pulse 2.4s ease-in-out infinite}
 .pcard.r-legend{box-shadow:0 0 22px #ffb81faa,0 6px 16px #0006;animation:pulse 1.8s ease-in-out infinite}
-.pcard.r-legend::before,.pcard.r-myth::before{content:"";position:absolute;inset:-40%;
+.pcard.r-legend::before,.pcard.r-myth::before,.pcard.r-trans::before{content:"";position:absolute;inset:-40%;
   background:linear-gradient(115deg,transparent 40%,#ffffff55 50%,transparent 60%);animation:shine 2.8s linear infinite;pointer-events:none}
 .pcard.r-myth{border-color:transparent;background:linear-gradient(#0d1126,#0d1126) padding-box,conic-gradient(from var(--ang,0deg),#ff3d6e,#ffb81f,#2cff8a,#19c3ff,#b65cff,#ff3d6e) border-box;
   box-shadow:0 0 26px #ff3d6eaa,0 6px 16px #0006;animation:spin 3s linear infinite}
@@ -261,3 +261,5 @@ input{font:inherit;color:inherit}
 .balchip{font-size:13px;font-weight:900;color:#2a1700;background:linear-gradient(180deg,#ffd45e,#f29a00);border-radius:999px;padding:4px 10px;white-space:nowrap}
 .pcard.sel{outline-width:2px}
 .res-reward{margin:6px 0;font-size:20px;font-weight:900;color:var(--gold);animation:tagIn .6s both}
+
+.pcard.r-trans{border-color:transparent;background:linear-gradient(#050a1a,#050a1a) padding-box,conic-gradient(from var(--ang,0deg),#ffffff,#5cf2ff,#b65cff,#ffffff,#ffd45e,#5cf2ff,#ffffff) border-box;box-shadow:0 0 34px #5cf2ffcc,0 0 70px #b65cff66,0 6px 16px #0006;animation:pulse 1.2s ease-in-out infinite}

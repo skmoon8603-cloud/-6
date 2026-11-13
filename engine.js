@@ -48,13 +48,13 @@ class Match {
         const meta = C.BY_ID[id];
         const st = C.statsFor(id, o.invs[side]);
         const p = {
-          i: side * K.TEAM_SIZE + slot, side, slot, pos: meta.pos, st, id,
+          i: side * K.TEAM_SIZE + slot, side, slot, pos: C.SLOTS[slot], st, id,
           x: 0, y: 0, vx: 0, vy: 0, ang: side === 0 ? 0 : Math.PI, stam: 100, tired: false,
           kickCd: 0, kickAnim: 0, tackleCd: 0, hold: 0, skill: o.bots[side] ? K.BOT_SKILL : K.MATE_SKILL, aiNoise: 0, think: 0, dx: 0, dy: 0, sp: false, boost: 1, catchCd: 0, diving: 0,
           maxSpd: 115 + st.spd * 0.95,
         };
         this.players.push(p);
-        this.roster[side].push({ id, name: meta.name, num: meta.number, pos: meta.pos, rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovr });
+        this.roster[side].push({ id, name: meta.name, num: meta.number, pos: C.SLOTS[slot], rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovrBy[C.SLOTS[slot]] });
       }
     }
     this.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, last: -1, lastSide: -1, owner: -1 };
@@ -293,7 +293,7 @@ class Match {
       if (opp) {
         best = carrier;
         if (opp.tackleCd <= 0) {
-          const ctl = (carrier.st.pas + carrier.st.spd) / 2;
+          const ctl = carrier.st.dri; // 드리블이 높을수록 공을 잘 안 뺏긴다
           const chance = clamp(0.22 + (opp.st.def - ctl) * 0.007, 0.05, 0.7);
           if (this.rng() < chance) { best = opp; carrier.kickCd = 0.35; opp.tackleCd = 0.5; this.events.push({ type: 'save' }); } // 뺏기 성공
           else { opp.tackleCd = 0.8; opp.vx *= 0.35; opp.vy *= 0.35; } // 실패: 태클한 선수가 주춤
@@ -303,15 +303,15 @@ class Match {
     if (best) {
       const p = best;
       const sp = Math.hypot(p.vx, p.vy);
-      const ctl = (p.st.pas + p.st.spd) / 2;
+      const ctl = (p.st.dri * 2 + p.st.spd) / 3;
       if (p.pos === 'GK' && p.catchCd <= 0 && Math.hypot(b.vx, b.vy) < 650 + p.st.gk * 2) {
         // 골키퍼 캐치
         const spd = Math.hypot(b.vx, b.vy);
         const chance = clamp(0.35 + p.st.gk / 170 - spd / 2200, 0.15, 0.97);
         p.catchCd = 0.8;
-        if (this.rng() < chance) { b.vx = b.vy = 0; p.hold = 0.55; b.owner = p.i; b.last = p.i; b.lastSide = p.side; this.events.push({ type: 'save' }); return; }
+        if (this.rng() < chance) { b.vx = b.vy = 0; p.hold = 0.55; b.owner = p.i; b.last = p.i; b.lastSide = p.side; this.autoCtrl(p); this.events.push({ type: 'save' }); return; }
       }
-      b.owner = p.i; b.last = p.i; b.lastSide = p.side;
+      b.owner = p.i; b.last = p.i; b.lastSide = p.side; this.autoCtrl(p);
       if (sp > 15 || Math.hypot(b.vx, b.vy) < 80) {
         const tx = p.x + Math.cos(p.ang) * (PR + BR + 3), ty = p.y + Math.sin(p.ang) * (PR + BR + 3);
         const k = Math.min(1, dt * (7 + ctl * 0.07));
@@ -337,6 +337,9 @@ class Match {
       }
     }
   }
+
+  /** 공을 잡으면 그 선수를 자동으로 조종 (사람이 조작하는 팀) */
+  autoCtrl(p) { const tm = this.teams[p.side]; if (!tm.bot && tm.ctrl !== p.slot) tm.ctrl = p.slot; }
 
   canReach(p) { return Math.hypot(this.ball.x - p.x, this.ball.y - p.y) <= PR + BR + 12; }
 

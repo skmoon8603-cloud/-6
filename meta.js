@@ -40,6 +40,7 @@
   };
   /** 서버가 확정한 계정 정보(잔액/보관함/닉네임) 적용 */
   RF.setAccount = (a) => {
+    if (a.secret && RF.byId && RF.cat) for (const k in a.secret) { RF.byId[k] = a.secret[k]; const ix = RF.cat.players.findIndex((x) => x.id === k); if (ix >= 0) RF.cat.players[ix] = a.secret[k]; } // 보유한 초월 캐릭터의 실제 정보
     S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email;
     updateBal();
     if (RF.ready && RF.cat) { sanitizeLineup(); if (RF.screen === 'gacha') renderGacha(); if (RF.screen === 'home') renderHome(); }
@@ -91,6 +92,7 @@
       case 'hero': [523, 659, 784].forEach((f, i) => tone(f, 0.25, 'triangle', 0.13, i * 0.1)); break;
       case 'legend': [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.09, i * 0.09)); break;
       case 'myth': [392, 523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, 0.45, 'sawtooth', 0.1, i * 0.08)); noise(1.2, 0.1, 2500, 0.4); break;
+      case 'trans': [392, 523, 659, 784, 1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.55, 'sawtooth', 0.11, i * 0.09)); noise(1.6, 0.12, 3000, 0.5); break;
       default: break;
     }
   };
@@ -107,10 +109,10 @@
   const lvOf = (id) => (RF.byId[id].starter ? 0 : Math.min(RF.cat.maxDup, Math.max(0, countOf(id) - 1)));
   const eff = (id) => {
     const p = RF.byId[id], m = 1 + lvOf(id) * 0.02, o = {};
-    for (const k in p.stats) o[k] = Math.min(99, Math.round(p.stats[k] * m));
+    for (const k in p.stats) o[k] = Math.min(100, Math.round(p.stats[k] * m));
     return o;
   };
-  const effOvr = (id) => Math.min(99, Math.round(RF.byId[id].ovr * (1 + lvOf(id) * 0.02)));
+  const effOvr = (id, pos) => { const p = RF.byId[id]; const o = (p.ovrBy && p.ovrBy[pos || p.pos]) || p.ovr; return Math.min(100, Math.round(o * (1 + lvOf(id) * 0.02))); };
   RF.isOwned = isOwned; RF.effOvr = effOvr;
 
   function sanitizeLineup() {
@@ -120,13 +122,13 @@
     for (let i = 0; i < slots.length; i++) {
       let id = S.lineup && S.lineup[i];
       const p = RF.byId[id];
-      if (!p || p.pos !== slots[i] || !isOwned(id) || used.has(id)) id = starters[i];
+      if (!p || !isOwned(id) || used.has(id)) id = starters[i];
       used.add(id); out.push(id);
     }
     S.lineup = out; if (S.uid) LS.set('lineup_' + S.uid, out);
   }
   RF.teamPayload = () => ({ lineup: S.lineup });
-  const teamAvg = () => Math.round(S.lineup.reduce((s, id) => s + effOvr(id), 0) / S.lineup.length);
+  const teamAvg = () => Math.round(S.lineup.reduce((s, id, i) => s + effOvr(id, RF.cat.slots[i]), 0) / S.lineup.length);
 
   function jersey(p) {
     return `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M20 10 4 22l8 12 8-6v28h24V28l8 6 8-12L44 10Q32 18 20 10z" fill="${p.c1}" stroke="#0008" stroke-width="2"/><path d="M20 10Q32 18 44 10v5Q32 23 20 15z" fill="${p.c2}"/><path d="M20 49h24v4H20z" fill="${p.c2}" opacity=".75"/><text x="32" y="43" text-anchor="middle" font-size="19" font-weight="900" fill="${p.c2}" stroke="#000a" stroke-width="1.2" paint-order="stroke">${p.number}</text></svg>`;
@@ -136,7 +138,7 @@
     const lock = !!o.locked; const lv = lock ? 0 : lvOf(id);
     return `<div class="pcard r-${p.rarity}${lock ? ' locked' : ''}${o.sel ? ' sel' : ''}${o.sm ? ' sm' : ''}" data-id="${id}">
       ${o.isNew ? '<div class="new">NEW</div>' : ''}
-      <div class="t"><span class="ovr">${lock ? '?' : (o.base ? p.ovr : effOvr(id))}</span><span class="pos">${p.pos}</span></div>
+      <div class="t"><span class="ovr">${lock ? '?' : (o.base ? p.ovr : effOvr(id, o.pos))}</span><span class="pos">${lock && p.hidden ? '?' : (o.pos || p.pos)}</span></div>
       ${jersey(p)}
       <div class="nm">${lock ? '???' : esc(p.name)}</div>
       <div class="rar">${r.name}</div>
@@ -164,18 +166,18 @@
   $('modalX').addEventListener('click', closeModal);
   $('modal').addEventListener('pointerdown', (e) => { if (e.target === $('modal')) closeModal(); });
 
-  const STAT_LABEL = [['spd', '속도'], ['sht', '슛'], ['pas', '패스'], ['def', '수비'], ['sta', '체력'], ['gk', '골키퍼']];
+  const STAT_LABEL = [['spd', '속도'], ['sht', '슛'], ['pas', '패스'], ['def', '수비'], ['sta', '체력'], ['dri', '드리블'], ['gk', '골키퍼']];
   function detail(id, locked) {
     const p = RF.byId[id], r = rarOf(p.rarity), st = locked ? p.stats : eff(id);
     const lv = locked ? 0 : lvOf(id);
     let eq = '';
     if (!locked && isOwned(id)) {
-      const idx = RF.cat.slots.map((s, i) => (s === p.pos ? i : -1)).filter((i) => i >= 0);
-      eq = '<div class="row">' + idx.map((i, n) => `<button class="btn primary" data-eq="${i}">${idx.length > 1 ? `${p.pos} 슬롯 ${n + 1}에 ` : ''}장착${S.lineup[i] === id ? ' ✓' : ''}</button>`).join('') + '</div>';
+      const idx = RF.cat.slots.map((s, i) => i);
+      eq = '<div class="row">' + idx.map((i, n) => `<button class="btn primary" data-eq="${i}">${RF.cat.posName[RF.cat.slots[i]]}${RF.cat.slots.filter((x) => x === RF.cat.slots[i]).length > 1 ? (idx.filter((j) => RF.cat.slots[j] === RF.cat.slots[i]).indexOf(i) + 1) : ''}에 장착${S.lineup[i] === id ? ' ✓' : ''}</button>`).join('') + '</div>';
     }
-    openModal(`<div class="det">${RF.cardHTML(id, { locked })}<div><h3>${locked ? '???' : esc(p.name)}</h3><p>${r.name} · ${RF.cat.posName[p.pos]} · #${p.number}</p>
+    openModal(`<div class="det">${RF.cardHTML(id, { locked })}<div><h3>${locked ? '???' : esc(p.name)}</h3><p>${r.name} · ${locked && p.hidden ? '?' : RF.cat.posName[p.pos]} · #${p.number}</p>
       <p style="margin-top:6px">${locked ? '아직 획득하지 못한 선수입니다.' : p.starter ? '기본 지급 선수' : `보유 ${countOf(id)}장 · 강화 Lv.${lv + 1}${lv >= RF.cat.maxDup ? ' (MAX)' : ` (+${lv * 2}%)`}`}</p></div></div>
-      <div class="bars">${STAT_LABEL.map(([k, n]) => `<div class="bar"><span>${n}</span><i><span style="width:${st[k]}%"></span></i><b>${st[k]}</b></div>`).join('')}</div>${eq}`);
+      <div class="bars">${(locked && p.hidden ? [] : STAT_LABEL).map(([k, n]) => `<div class="bar"><span>${n}</span><i><span style="width:${st[k]}%"></span></i><b>${st[k]}</b></div>`).join('')}</div>${eq}`);
     $('modalBody').querySelectorAll('[data-eq]').forEach((b) => b.addEventListener('click', () => { equip(+b.dataset.eq, id); closeModal(); }));
   }
   RF.detail = detail;
@@ -192,9 +194,9 @@
   // ───────────── 홈 ─────────────
   function renderHome() {
     $('nameInput').value = S.name; $('acctMail').textContent = S.email || '';
-    $('homeTeam').innerHTML = S.lineup.map((id) => {
+    $('homeTeam').innerHTML = S.lineup.map((id, i) => {
       const p = RF.byId[id], c = rarOf(p.rarity).color;
-      return `<div class="mini" style="--rc:${c}"><b>${effOvr(id)}</b>${p.pos}</div>`;
+      return `<div class="mini" style="--rc:${c}"><b>${effOvr(id, RF.cat.slots[i])}</b>${RF.cat.slots[i]}</div>`;
     }).join('');
     const total = RF.cat.players.filter((p) => !p.starter).length;
     const have = RF.cat.players.filter((p) => !p.starter && isOwned(p.id)).length;
@@ -277,7 +279,7 @@
     const ov = $('reveal'), st = $('revealStage'); skip = false;
     st.innerHTML = ''; ov.classList.remove('hidden'); $('revealClose').classList.add('hidden'); $('revealSkip').classList.remove('hidden');
     const flash = (c) => { const f = document.createElement('div'); f.className = 'flash'; f.style.setProperty('--fc', c); ov.appendChild(f); setTimeout(() => f.remove(), 950); };
-    const power = { common: 0, rare: 18, hero: 36, legend: 70, myth: 120 };
+    const power = { common: 0, rare: 18, hero: 36, legend: 70, myth: 120, trans: 220 };
     const info = (r) => (r.isNew ? '' : '');
     flash(bestColor);
     if (results.length === 1) {
@@ -293,7 +295,7 @@
         const card = el.firstChild; card.style.animationDelay = '0s'; g.appendChild(card);
         RF.sfx(p.rarity); burst(rc.color, 8 + power[p.rarity] / 2, 0.15 + 0.7 * ((i % 5) / 4), 0.25 + 0.4 * Math.floor(i / 5));
         if (power[p.rarity] >= 70) flash(rc.color);
-        if (!skip) await sleep(p.rarity === 'myth' ? 900 : p.rarity === 'legend' ? 650 : 330);
+        if (!skip) await sleep(p.rarity === 'trans' ? 1600 : p.rarity === 'myth' ? 900 : p.rarity === 'legend' ? 650 : 330);
       }
       const dups = results.filter((r) => !r.isNew).length;
       const note = document.createElement('div'); note.className = 'tiny center'; note.style.cssText = 'grid-column:1/-1;pointer-events:none';
@@ -339,17 +341,17 @@
   const SLOT_POS = [[50, 88], [24, 66], [76, 66], [50, 46], [26, 20], [74, 20]];
   function renderTeam() {
     $('teamOvr').textContent = `팀 평균 ${teamAvg()}`;
-    $('teamField').innerHTML = RF.cat.slots.map((s, i) => `<div class="slot" style="left:${SLOT_POS[i][0]}%;top:${SLOT_POS[i][1]}%" data-i="${i}"><div class="tag">${s}</div>${RF.cardHTML(S.lineup[i], { sm: true })}</div>`).join('');
+    $('teamField').innerHTML = RF.cat.slots.map((s, i) => `<div class="slot" style="left:${SLOT_POS[i][0]}%;top:${SLOT_POS[i][1]}%" data-i="${i}"><div class="tag">${s}</div>${RF.cardHTML(S.lineup[i], { sm: true, pos: s })}</div>`).join('');
     $('teamField').querySelectorAll('.slot').forEach((el) => el.addEventListener('click', () => pickSlot(+el.dataset.i)));
     $('teamList').textContent = '';
   }
   function pickSlot(i) {
     const pos = RF.cat.slots[i];
-    const list = RF.cat.players.filter((p) => p.pos === pos && isOwned(p.id)).sort((a, b) => effOvr(b.id) - effOvr(a.id));
+    const list = RF.cat.players.filter((p) => isOwned(p.id)).sort((a, b) => effOvr(b.id, pos) - effOvr(a.id, pos));
     openModal(`<h3 style="margin:0 0 10px">${RF.cat.posName[pos]} 선택</h3><div class="pick-list">` + list.map((p) => {
       const r = rarOf(p.rarity), st = eff(p.id);
-      const main = pos === 'GK' ? `GK ${st.gk}` : pos === 'FW' ? `슛 ${st.sht} · 속도 ${st.spd}` : pos === 'MF' ? `패스 ${st.pas} · 체력 ${st.sta}` : `수비 ${st.def} · 체력 ${st.sta}`;
-      return `<button class="pick${S.lineup[i] === p.id ? ' cur' : ''}" style="--rc:${r.color}" data-id="${p.id}"><span class="o">${effOvr(p.id)}</span><span class="n">${esc(p.name)}<small>${r.name} · ${main}${lvOf(p.id) ? ` · Lv.${lvOf(p.id) + 1}` : ''}</small></span><span>${S.lineup[i] === p.id ? '✓' : ''}</span></button>`;
+      const main = (pos === 'GK' ? `골키퍼 ${st.gk}` : pos === 'FW' ? `슛 ${st.sht} · 속도 ${st.spd}` : pos === 'MF' ? `패스 ${st.pas} · 체력 ${st.sta}` : `수비 ${st.def} · 체력 ${st.sta}`) + ` · 드리블 ${st.dri}`;
+      return `<button class="pick${S.lineup[i] === p.id ? ' cur' : ''}" style="--rc:${r.color}" data-id="${p.id}"><span class="o">${effOvr(p.id, pos)}</span><span class="n">${esc(p.name)}<small>${r.name} · ${main}${lvOf(p.id) ? ` · Lv.${lvOf(p.id) + 1}` : ''}</small></span><span>${S.lineup[i] === p.id ? '✓' : ''}</span></button>`;
     }).join('') + '</div>');
     $('modalBody').querySelectorAll('.pick').forEach((b) => b.addEventListener('click', () => { equip(i, b.dataset.id); closeModal(); }));
   }
