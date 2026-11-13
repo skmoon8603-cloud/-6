@@ -252,7 +252,8 @@
         if (navigator.vibrate) navigator.vibrate(mine ? [60, 40, 120] : 80);
       } else if (e.type === 'kick') {
         if (st) R.kickFx(st.b[0], st.b[1], e.pw); RF.sfx('kick', e.pw);
-      } else if (e.type === 'post') RF.sfx('post');
+      } else if (e.type === 'bounce') { if (st) R.bounceFx(st.b[0], st.b[1]); RF.sfx('kick', 120); }
+      else if (e.type === 'post') RF.sfx('post');
       else if (e.type === 'save') RF.sfx('save');
       else if (e.type === 'whistle' || e.type === 'kickoff') RF.sfx('whistle');
     }
@@ -272,7 +273,7 @@
     const B = b.s, dk = b.k - a.k, f = Math.max(0, Math.min(1, (target - a.k) / dk)), sec = dk / 60;
     return {
       cur: last.s, c: B.c,
-      b: [A.b[0] + (B.b[0] - A.b[0]) * f, A.b[1] + (B.b[1] - A.b[1]) * f, A.b[2] + (B.b[2] - A.b[2]) * f, A.b[3] + (B.b[3] - A.b[3]) * f],
+      b: [A.b[0] + (B.b[0] - A.b[0]) * f, A.b[1] + (B.b[1] - A.b[1]) * f, A.b[2] + (B.b[2] - A.b[2]) * f, A.b[3] + (B.b[3] - A.b[3]) * f, (A.b[4] || 0) + ((B.b[4] || 0) - (A.b[4] || 0)) * f],
       p: A.p.map((q, i) => { const r = B.p[i]; return [q[0] + (r[0] - q[0]) * f, q[1] + (r[1] - q[1]) * f, angLerp(q[2], r[2], f), r[3], q[4] | r[4], (r[0] - q[0]) / sec, (r[1] - q[1]) / sec]; }),
     };
   }

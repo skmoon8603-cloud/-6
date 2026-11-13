@@ -57,7 +57,7 @@ class Match {
         this.roster[side].push({ id, name: meta.name, num: meta.number, pos: C.SLOTS[slot], rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovr });
       }
     }
-    this.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, last: -1, lastSide: -1, owner: -1 };
+    this.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, z: 0, vz: 0, last: -1, lastSide: -1, owner: -1 };
     this.kickTeam = this.rng() < 0.5 ? 0 : 1;
     this.phase = 'countdown';
     this.phaseT = K.COUNTDOWN;
@@ -76,7 +76,7 @@ class Match {
     }
     const t = this.players[kickSide * K.TEAM_SIZE + 4];
     t.x = kickSide === 0 ? W / 2 - 28 : W / 2 + 28; t.y = H / 2;
-    Object.assign(this.ball, { x: W / 2, y: H / 2, vx: 0, vy: 0, owner: -1, last: -1, lastSide: -1 });
+    Object.assign(this.ball, { x: W / 2, y: H / 2, vx: 0, vy: 0, z: 0, vz: 0, owner: -1, last: -1, lastSide: -1 });
     for (const tm of this.teams) { tm.ctrl = 4; tm.queue.length = 0; tm.receiver = -1; tm.freeze = tm.side === kickSide ? 0 : 1.6; tm.input.mx = tm.input.my = 0; }
   }
 
@@ -171,7 +171,7 @@ class Match {
       if (p.tired && p.stam >= 20) p.tired = false;
     }
     p.sprinting = sprinting;
-    let spd = p.maxSpd * (sprinting ? 1.38 : 1) * (p.tired ? 0.82 : 1) * p.boost;
+    let spd = p.maxSpd * (sprinting ? K.SPRINT_MUL : 1) * (p.tired ? 0.82 : 1) * p.boost;
     const l = Math.hypot(p.dx, p.dy) || 1;
     const tvx = mag > 0.05 ? (p.dx / l) * spd * mag : 0;
     const tvy = mag > 0.05 ? (p.dy / l) * spd * mag : 0;
@@ -205,6 +205,11 @@ class Match {
   moveBall(dt, live) {
     const b = this.ball;
     if (live) this.playerBall(dt);
+    // 원바: 공이 떠 있다가 바닥에 '한 번' 튕긴다 (그 뒤로는 굴러간다)
+    if (b.z > 0 || b.vz) {
+      b.vz -= K.GRAVITY * dt; b.z += b.vz * dt;
+      if (b.z <= 0) { b.z = 0; b.vz = 0; b.vx *= 0.8; b.vy *= 0.8; this.events.push({ type: 'bounce' }); }
+    }
     const f = Math.exp(-K.BALL_FRICTION * dt);
     b.vx *= f; b.vy *= f;
     if (Math.hypot(b.vx, b.vy) < 3) { b.vx = 0; b.vy = 0; }
@@ -270,6 +275,10 @@ class Match {
   /** 공과 선수 접촉: 드리블 보조, 충돌, 골키퍼 캐치 */
   playerBall(dt) {
     const b = this.ball;
+    if (K.ONE_BOUNCE && b.z > K.TOUCH_Z) {
+      // 공이 떠 있는 동안은 (골키퍼 손이 닿는 높이 외에는) 아무도 칠 수 없다
+      if (!(b.z <= K.GK_TOUCH_Z && this.players.some((p) => p.pos === 'GK' && Math.hypot(b.x - p.x, b.y - p.y) <= PR + BR + 10))) return;
+    }
     // 드리블 소유자 결정. 상대가 공을 가진 선수에게서 뺏으려면 '태클 판정'을 통과해야 한다.
     // 성공 확률은 태클하는 선수의 수비 능력이 높을수록, 공 가진 선수의 볼 컨트롤이 낮을수록 높다.
     let best = null, bestEff = 1e9;
@@ -341,17 +350,19 @@ class Match {
   /** 공을 잡으면 그 선수를 자동으로 조종 (사람이 조작하는 팀) */
   autoCtrl(p) { const tm = this.teams[p.side]; if (!tm.bot && tm.ctrl !== p.slot) tm.ctrl = p.slot; }
 
-  canReach(p) { return Math.hypot(this.ball.x - p.x, this.ball.y - p.y) <= PR + BR + 12; }
+  canReach(p) { if (K.ONE_BOUNCE && this.ball.z > (p.pos === 'GK' ? K.GK_TOUCH_Z : K.TOUCH_Z)) return false; return Math.hypot(this.ball.x - p.x, this.ball.y - p.y) <= PR + BR + 12; }
 
   kick(p, ang, speed) {
     const b = this.ball;
+    speed *= K.BALL_SPEED_SCALE;
+    if (K.ONE_BOUNCE) { const T = clamp(0.25 + speed / 2000, 0.3, 0.5); b.z = 0.01; b.vz = (K.GRAVITY * T) / 2; }
     b.vx = Math.cos(ang) * speed + p.vx * 0.25;
     b.vy = Math.sin(ang) * speed + p.vy * 0.25;
     b.last = p.i; b.lastSide = p.side; b.owner = -1;
     p.kickCd = 0.32; p.kickAnim = 0.22; p.hold = 0; p.ang = ang;
     const sx = Math.cos(ang) * (PR + BR + 2), sy = Math.sin(ang) * (PR + BR + 2);
     b.x = p.x + sx; b.y = p.y + sy;
-    this.events.push({ type: 'kick', pw: speed });
+    this.events.push({ type: 'kick', pw: speed / K.BALL_SPEED_SCALE });
   }
 
   doShoot(p, power) {
@@ -448,7 +459,7 @@ class Match {
     const b = this.ball;
     return {
       ph: this.phase, tm: r1(this.timeLeft), pt: r1(Math.max(0, this.phaseT)), sc: this.score,
-      b: [r1(b.x), r1(b.y), r1(b.vx), r1(b.vy)],
+      b: [r1(b.x), r1(b.y), r1(b.vx), r1(b.vy), r1(b.z)],
       p: this.players.map((p) => [r1(p.x), r1(p.y), Math.round(p.ang * 100) / 100, Math.round(p.stam), (p.kickAnim > 0 ? 1 : 0) | (p.sprinting ? 2 : 0) | (p.hold > 0 ? 4 : 0)]),
       c: [this.teams[0].ctrl, this.teams[1].ctrl],
       k: this.tick,

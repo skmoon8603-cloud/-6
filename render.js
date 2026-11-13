@@ -103,7 +103,8 @@
   };
 
   // ───────────── 이펙트 ─────────────
-  R.shake = (a) => { shakeAmp = Math.max(shakeAmp, a); };
+  R.shake = (a) => { shakeAmp = Math.max(shakeAmp, a * 0.4); };
+  R.bounceFx = (x, y) => { rings.push({ x, y, r: 4, a: 0.9, w: 3, grow: 90 }); };
   R.kickFx = (x, y, power) => { rings.push({ x, y, r: 6, a: 0.7, w: 2 + power / 500 }); };
   R.goalFx = (scorerSide) => {
     const gx = scorerSide === 0 ? W : 0;
@@ -175,15 +176,17 @@
     if (sp > 300) { trail.push({ x, y, a: 0.45 }); if (trail.length > 8) trail.shift(); } else if (trail.length) trail.shift();
     trail.forEach((t, i) => { ctx.globalAlpha = t.a * (i / trail.length); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(t.x, t.y, BR * 0.8, 0, 6.2832); ctx.fill(); });
     ctx.globalAlpha = 1;
-    ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.ellipse(x + 3, y + 6, BR, BR * 0.55, 0, 0, 6.2832); ctx.fill();
-    ctx.save(); ctx.translate(x, y); ctx.rotate(ballRot * (side ? -1 : 1) + Math.atan2(b[3], b[2]) * 0);
+    const z = b[4] || 0;
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.32 - Math.min(0.15, z / 200)) + ')'; ctx.beginPath(); ctx.ellipse(x + 3, y + 6, BR, BR * 0.55, 0, 0, 6.2832); ctx.fill();
+    const yy = y - z * 1.1, zs = 1 + z / 70;
+    ctx.save(); ctx.translate(x, yy); ctx.scale(zs, zs); ctx.rotate(ballRot * (side ? -1 : 1) + Math.atan2(b[3], b[2]) * 0);
     const g = ctx.createRadialGradient(-2, -2, 1, 0, 0, BR + 1); g.addColorStop(0, '#fff'); g.addColorStop(1, '#cfd6e4');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, BR, 0, 6.2832); ctx.fill();
     ctx.fillStyle = '#1b2333';
     ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = (i / 5) * 6.2832 - 1.57; ctx.lineTo(Math.cos(a) * 3.2, Math.sin(a) * 3.2); } ctx.closePath(); ctx.fill();
     for (let i = 0; i < 5; i++) { const a = (i / 5) * 6.2832 - 1.57; ctx.beginPath(); ctx.arc(Math.cos(a) * 7, Math.sin(a) * 7, 1.8, 0, 6.2832); ctx.fill(); }
     ctx.restore();
-    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, BR, 0, 6.2832); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, yy, BR * zs, 0, 6.2832); ctx.stroke();
   }
 
   /** st: 보간된 상태 {b:[x,y,vx,vy], p:[[x,y,ang,stam,flags,vx,vy]*12], c:[a,b]} */
@@ -194,13 +197,13 @@
     const me = st.p[st.c[side] + side * 6];
     const bx = flipX(st.b[0]), by = flipY(st.b[1]);
     const mx = flipX(me[0]), my = flipY(me[1]);
-    let tx = bx * 0.7 + mx * 0.3 + (side ? -st.b[2] : st.b[2]) * 0.12;
+    let tx = bx * 0.7 + mx * 0.3 + (side ? -st.b[2] : st.b[2]) * 0.04;
     let ty = by * 0.7 + my * 0.3;
     const vw = cw / sc, vh = ch / sc;
     const clampC = (v, half, lo, hi) => (half * 2 >= hi - lo ? (lo + hi) / 2 : Math.max(lo + half, Math.min(hi - half, v)));
     tx = clampC(tx, vw / 2, -M + 20, W + M - 20); ty = clampC(ty, vh / 2, -M + 20, H + M - 20);
     if (!cam.init) { cam.x = tx; cam.y = ty; cam.init = true; }
-    const k = 1 - Math.exp(-dt * 6); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
+    const k = 1 - Math.exp(-dt * 3.5); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
     // 흔들림
     shakeAmp *= Math.exp(-dt * 7); const sx = (Math.random() - 0.5) * shakeAmp, sy = (Math.random() - 0.5) * shakeAmp;
 
