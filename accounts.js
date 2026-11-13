@@ -12,6 +12,18 @@ const normUser = (n) => String(n || '').normalize('NFC').trim().toLowerCase();
 const validUser = (u) => u.length >= 2 && u.length <= 20 && !/[\u0000-\u001f\u007f]/.test(u);
 const fails = new Map(); // 아이디별 로그인 실패 제한 { n, until }
 
+let clock = () => Date.now();
+const setClock = (f) => { clock = f || (() => Date.now()); };
+/** 한국 시간(KST) 기준 '일' 번호와 그 주(월요일 시작)의 첫 날 번호 */
+const kstDay = (t = clock()) => Math.floor((t + K.ATTEND_TZ_H * 3600000) / 86400000);
+const weekStart = (d) => d - ((d + 3) % 7); // 1970-01-01 은 목요일 → (d+3)%7 == 0 이 월요일
+/** 이번 주 출석 현황 { n: 이번 주 출석 일수, today: 오늘 받았는지, next: 다음에 받을 금액(오늘 받았으면 0) } */
+function attStatus(a) {
+  const d = kstDay(), w = weekStart(d), at = a.att && a.att.w === w ? a.att : { w, n: 0, last: -1 };
+  const today = at.last === d;
+  return { n: at.n, today, next: today || at.n >= K.ATTEND.length ? 0 : K.ATTEND[at.n] };
+}
+
 const STAKES = [0, 1000, 2000, 5000, 10000];
 const MAX_BAL = 1e9;
 const cleanNick = (n) => (String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 12));
@@ -21,6 +33,7 @@ const pub = (a) => ({
   id: a.id, email: a.email, nick: a.id.startsWith('u-') ? a.id.slice(2) : a.nick, bal: a.bal, inv: a.inv, pulls: a.pulls,
   locked: a.locked ? a.locked.stake : 0,
   secret: C.secretFor(a.inv), // 보유한 숨김(초월) 캐릭터의 실제 정보
+  att: attStatus(a),
 });
 
 class Accounts {
@@ -103,6 +116,20 @@ class Accounts {
     });
   }
 
+  /** 일일 출석 보상: 하루 한 번(한국 시간 기준), 이번 주 N번째 출석에 ATTEND[N-1] 원. 매주 월요일 초기화. */
+  async attend(id) {
+    return this.store.txn([id], (m) => {
+      const a = m[id]; if (!a) return { error: 'no_account' };
+      const d = kstDay(), w = weekStart(d);
+      let at = a.att && a.att.w === w ? a.att : { w, n: 0, last: -1 };
+      if (at.last === d) return { error: 'already', acct: pub(a) };
+      const amount = K.ATTEND[Math.min(at.n, K.ATTEND.length - 1)];
+      at = { w, n: at.n + 1, last: d };
+      a.att = at; a.bal = Math.min(MAX_BAL, a.bal + amount);
+      return { amount, day: at.n, acct: pub(a) };
+    });
+  }
+
   async reward(id, amount) {
     return this.store.txn([id], (m) => { const a = m[id]; if (!a) return null; a.bal = Math.min(MAX_BAL, a.bal + amount); return pub(a); });
   }
@@ -169,4 +196,4 @@ class Accounts {
   }
 }
 
-module.exports = { Accounts, STAKES, pub, cleanNick };
+module.exports = { Accounts, STAKES, pub, cleanNick, setClock };

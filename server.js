@@ -45,6 +45,7 @@ app.get('/auth/github/callback', A.githubCallback);
 app.get('/api/me', A.me);
 app.post('/api/pull', A.pull);
 app.post('/api/nick', A.nick);
+app.post('/api/attend', A.attend);
 
 const PUB = path.join(__dirname, 'public');
 if (fs.existsSync(path.join(PUB, 'index.html'))) {

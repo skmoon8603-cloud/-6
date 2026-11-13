@@ -55,7 +55,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/socket.io/socket.io.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(SHIM); }
   if (url.pathname === '/api/catalog') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(api.catalogPayload())); }
-  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick };
+  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend };
   if (routes[url.pathname]) {
     const b = req.method === 'POST' ? await body(req) : undefined;
     const rq = { headers: req.headers, body: b, ip: req.socket.remoteAddress };

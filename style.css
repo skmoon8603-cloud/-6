@@ -283,3 +283,10 @@ input{font:inherit;color:inherit}
 #bScore .bn{font-size:11px;color:var(--mut);max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #bScore .bt{display:none}
 #scr-bounce .overlay{z-index:5}
+
+/* 일일 출석 */
+.att-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.att-c{border:1px solid var(--line);background:#0b1430;border-radius:10px;padding:6px 0;text-align:center;line-height:1.3}
+.att-c small{display:block;font-size:10px;color:var(--mut)} .att-c b{font-size:13px}
+.att-c.done{background:#2cff8a1f;border-color:var(--acc);color:var(--acc)}
+.att-c.cur{border-color:var(--gold);box-shadow:0 0 0 2px #ffc53d44;color:var(--gold)}

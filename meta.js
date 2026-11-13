@@ -41,7 +41,7 @@
   /** 서버가 확정한 계정 정보(잔액/보관함/닉네임) 적용 */
   RF.setAccount = (a) => {
     if (a.secret && RF.byId && RF.cat) for (const k in a.secret) { RF.byId[k] = a.secret[k]; const ix = RF.cat.players.findIndex((x) => x.id === k); if (ix >= 0) RF.cat.players[ix] = a.secret[k]; } // 보유한 초월 캐릭터의 실제 정보
-    S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email;
+    S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email; S.att = a.att || null;
     updateBal();
     if (RF.ready && RF.cat) { sanitizeLineup(); if (RF.screen === 'gacha') renderGacha(); if (RF.screen === 'home') renderHome(); }
   };
@@ -192,7 +192,30 @@
   }
 
   // ───────────── 홈 ─────────────
+  /** 일일 출석 카드: 이번 주 7일 보상표 + 오늘 출석 버튼 (서버가 판정) */
+  function renderAttend() {
+    const el = $('attend'); if (!el) return;
+    const rewards = (RF.cat && RF.cat.attend) || [1000, 2000, 3000, 4000, 5000, 5000, 6000];
+    const at = S.att || { n: 0, today: false, next: rewards[0] };
+    const cells = rewards.map((r, i) => {
+      const done = i < at.n, cur = i === at.n && !at.today;
+      return `<div class="att-c${done ? ' done' : ''}${cur ? ' cur' : ''}"><small>${i + 1}일</small><b>${done ? '✔' : r / 1000 + '천'}</b></div>`;
+    }).join('');
+    const done = at.today || at.n >= rewards.length;
+    el.innerHTML = `<div class="sec-title" style="margin:0 0 8px">📅 일일 출석 <small>매주 월요일 초기화</small></div><div class="att-grid">${cells}</div>
+      <button id="btnAttend" class="btn ${done ? 'ghost' : 'primary'} big" style="width:100%;margin-top:10px" ${done ? 'disabled' : ''}>${done ? '오늘 출석 완료 ✓' : `출석 체크 · +${won(at.next)}`}</button>`;
+    const b = $('btnAttend');
+    if (b && !done) b.addEventListener('click', async () => {
+      b.disabled = true;
+      try {
+        const r = await RF.api('/api/attend', {}); const j = await r.json();
+        if (j.acct) RF.setAccount(j.acct);
+        if (r.ok) { RF.sfx('legend'); RF.toast(`출석 ${j.day}일차! +${won(j.amount)}`); } else RF.toast(j.error === 'already' ? '오늘은 이미 출석했어요' : '출석 실패', true);
+      } catch (e) { RF.toast('서버에 연결할 수 없습니다', true); b.disabled = false; }
+    });
+  }
   function renderHome() {
+    renderAttend();
     $('nameInput').value = S.name; $('acctMail').textContent = S.email || '';
     $('homeTeam').innerHTML = S.lineup.map((id, i) => {
       const p = RF.byId[id], c = rarOf(p.rarity).color;

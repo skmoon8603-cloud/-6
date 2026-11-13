@@ -17,7 +17,7 @@ function catalogPayload() {
   return {
     rarities: C.RARITIES.map(({ key, name, rate, color }) => ({ key, name, rate, color })),
     slots: C.SLOTS, posName: C.POS_NAME, maxDup: C.MAX_DUP_LEVEL, pullCost: K.PULL_COST, winReward: K.WIN_REWARD,
-    stakes: STAKES, players: C.CATALOG.map(C.publicPlayer),
+    stakes: STAKES, attend: K.ATTEND, players: C.CATALOG.map(C.publicPlayer),
   };
 }
 
@@ -92,6 +92,12 @@ function create({ accounts, auth }) {
       const n = req.body && req.body.n === 10 ? 10 : 1;
       const out = await accounts.pull(uid, n, rand01);
       if (out.error === 'not_enough') return { status: 402, body: out };
+      if (out.error) return { status: 401, body: out };
+      return { status: 200, body: out };
+    }),
+    attend: authed(async (_req, uid) => {
+      const out = await accounts.attend(uid);
+      if (out.error === 'already') return { status: 409, body: out };
       if (out.error) return { status: 401, body: out };
       return { status: 200, body: out };
     }),
