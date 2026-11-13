@@ -62,6 +62,20 @@ function create({ accounts, auth }) {
       } catch (e) { console.error('[api]', e); res.redirect('/#autherr=server'); }
     },
     config: (_req, res) => res.json({ googleClientId: auth.GOOGLE_CLIENT_ID, github: auth.GITHUB, devLogin: auth.DEV_LOGIN }),
+    register: wrap(async (req) => {
+      if (limited('r:' + req.ip, 5, 60000)) return { status: 429, body: { error: 'too_many_requests' } };
+      const b = req.body || {};
+      const r = await accounts.register(b.username, b.password, typeof b.legacyToken === 'string' ? b.legacyToken : null);
+      if (r.error) return { status: r.error === 'exists' ? 409 : 400, body: { error: r.error } };
+      return { status: 200, body: { session: auth.signSession(r.acct.id), account: r.acct } };
+    }),
+    signin: wrap(async (req) => {
+      if (limited('s:' + req.ip, 15, 60000)) return { status: 429, body: { error: 'too_many_requests' } };
+      const b = req.body || {};
+      const r = await accounts.signin(b.username, b.password);
+      if (r.error) return { status: r.error === 'locked' ? 429 : 401, body: { error: r.error } };
+      return { status: 200, body: { session: auth.signSession(r.acct.id), account: r.acct } };
+    }),
     login: wrap(async (req) => {
       if (limited('l:' + req.ip, 10, 60000)) return { status: 429, body: { error: 'too_many_requests' } };
       const b = req.body || {};

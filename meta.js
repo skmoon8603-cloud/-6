@@ -392,6 +392,25 @@
     if (RF.hooks.onReady) RF.hooks.onReady();
     if (RF.hooks.onLogin) RF.hooks.onLogin();
   }
+  async function doPw(kind) {
+    const msg = $('loginMsg'); const username = $('lgId').value.trim(), password = $('lgPw').value;
+    if (!username || !password) { msg.textContent = '아이디와 비밀번호를 입력해주세요'; return; }
+    msg.textContent = kind === 'register' ? '가입 중…' : '로그인 중…';
+    try {
+      const legacy = LS.get('token', '');
+      const r = await fetch(kind === 'register' ? '/api/register' : '/api/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, legacyToken: legacy || undefined }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const E = { bad_username: '아이디는 영문 소문자·숫자·_ 3~16자로 만들어주세요', bad_password: '비밀번호는 6자 이상으로 해주세요', exists: '이미 있는 아이디예요', bad_login: '아이디 또는 비밀번호가 틀렸어요', locked: '로그인 실패가 많아 5분간 잠겼어요', too_many_requests: '시도가 너무 많아요. 잠시 후 다시!' };
+        throw new Error(E[d.error] || '실패했어요. 다시 시도해주세요');
+      }
+      S.auth = d.session; LS.set('auth', d.session); LS.del('token'); LS.del('cid');
+      finishLogin(d.account);
+    } catch (e) { msg.textContent = e.message === 'Failed to fetch' ? '서버에 연결할 수 없습니다' : e.message; }
+  }
+  $('btnSignin').addEventListener('click', () => doPw('signin'));
+  $('btnSignup').addEventListener('click', () => doPw('register'));
+  $('lgPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') doPw('signin'); });
   async function doLogin(credential) {
     const msg = $('loginMsg'); msg.textContent = '로그인 중…';
     try {
@@ -424,7 +443,7 @@
       g.onclick = () => { location.href = '/auth/github' + (LS.get('token', '') ? '?legacy=' + encodeURIComponent(LS.get('token', '')) : ''); };
       $('loginMsg').textContent = '';
     }
-    if (!cfg.googleClientId) { if (!cfg.devLogin && !cfg.github) $('loginMsg').textContent = '서버에 구글 로그인이 아직 설정되지 않았어요 (관리자: GITHUB_CLIENT_ID/SECRET 필요)'; return; }
+    if (!cfg.googleClientId) return;
     try {
       await loadGsi();
       google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: (resp) => doLogin(resp.credential), ux_mode: 'popup' });

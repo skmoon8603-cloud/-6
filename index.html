@@ -169,11 +169,14 @@
   <div id="login" class="overlay hidden" style="align-items:center">
     <div class="sheet center" style="max-width:340px">
       <div class="hero-title" style="font-size:30px">RANDOM<span>FOOTBALL</span></div>
-      <p class="tiny">GitHub(또는 구글) 계정으로 로그인하면 내 선수와 잔액이 안전하게 저장돼요.<br>비밀번호는 저장하지 않습니다.</p>
-      <button id="ghbtn" class="btn primary big hidden" style="width:100%;margin-top:14px">GitHub로 로그인</button>
-      <div id="gbtn" style="display:flex;justify-content:center;margin:14px 0;min-height:44px"></div>
+      <p class="tiny">아이디와 비밀번호로 로그인하면 내 선수와 잔액이 서버에 저장돼요.<br>비밀번호는 암호화해서 저장해요.</p>
+      <input id="lgId" class="inp" placeholder="아이디 (영문 소문자·숫자·_ 3~16자)" maxlength="16" autocomplete="username" autocapitalize="none" spellcheck="false">
+      <input id="lgPw" class="inp" type="password" placeholder="비밀번호 (6자 이상)" maxlength="64" autocomplete="current-password" style="margin-top:8px">
+      <div class="row" style="margin-top:10px"><button id="btnSignin" class="btn primary big">로그인</button><button id="btnSignup" class="btn big">회원가입</button></div>
+      <button id="ghbtn" class="btn big hidden" style="width:100%;margin-top:10px">GitHub로 로그인</button>
+      <div id="gbtn" style="display:flex;justify-content:center;margin:10px 0;min-height:0"></div>
       <div id="devLogin" class="hidden"><input id="devName" class="inp" placeholder="테스트 이름" value="tester"><button class="btn">테스트 로그인</button></div>
-      <div id="loginMsg" class="tiny">불러오는 중…</div>
+      <div id="loginMsg" class="tiny"></div>
     </div>
   </div>
 

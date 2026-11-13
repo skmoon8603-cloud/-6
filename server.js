@@ -36,6 +36,8 @@ app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.
 app.get('/api/catalog', (_req, res) => { res.set('Cache-Control', 'public, max-age=300'); res.json(api.catalogPayload()); });
 app.get('/api/config', A.config);
 app.post('/api/login', A.login);
+app.post('/api/register', A.register);
+app.post('/api/signin', A.signin);
 app.get('/auth/github', A.githubStart);
 app.get('/auth/github/callback', A.githubCallback);
 app.get('/api/me', A.me);

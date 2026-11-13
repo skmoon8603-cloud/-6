@@ -6,6 +6,10 @@
 const C = require('./catalog');
 const K = require('./const');
 const I = require('./inventory');
+const crypto = require('crypto');
+const scrypt = (pw, salt) => new Promise((res, rej) => crypto.scrypt(pw, salt, 32, (e, k) => (e ? rej(e) : res(k))));
+const USER_RE = /^[a-z0-9_]{3,16}$/;
+const fails = new Map(); // 아이디별 로그인 실패 제한 { n, until }
 
 const STAKES = [0, 1000, 2000, 5000, 10000];
 const MAX_BAL = 1e9;
@@ -31,6 +35,43 @@ class Accounts {
       } else { a.email = profile.email || a.email; a.name = profile.name || a.name; }
       return pub(a);
     });
+  }
+
+  /** 아이디/비밀번호 회원가입. 비밀번호는 scrypt 해시로만 저장한다. */
+  async register(username, password, legacyToken) {
+    const u = String(username || '').trim().toLowerCase();
+    if (!USER_RE.test(u)) return { error: 'bad_username' };
+    if (typeof password !== 'string' || password.length < 6 || password.length > 64) return { error: 'bad_password' };
+    const salt = crypto.randomBytes(16);
+    const hash = (await scrypt(password, salt)).toString('base64');
+    const id = 'u-' + u;
+    return this.store.txn([id], (m) => {
+      if (m[id]) return { error: 'exists' };
+      const a = m[id] = { id, email: '', name: u, nick: u.slice(0, 12), bal: K.START_BAL, inv: {}, pulls: 0, locked: null, created: Date.now(), pw: { salt: salt.toString('base64'), hash } };
+      const old = legacyToken ? I.decode(legacyToken) : null;
+      if (old) { a.inv = old.inv; a.pulls = old.pulls; a.bal = Math.min(old.bal, 20000); a.imported = true; }
+      return { acct: pub(a) };
+    });
+  }
+
+  /** 아이디/비밀번호 로그인 (5회 연속 실패 시 5분 잠금) */
+  async signin(username, password) {
+    const u = String(username || '').trim().toLowerCase();
+    if (!USER_RE.test(u) || typeof password !== 'string' || password.length > 64) return { error: 'bad_login' };
+    const f = fails.get(u);
+    if (f && f.until > Date.now()) return { error: 'locked' };
+    const a = await this.store.get('u-' + u);
+    const salt = a && a.pw ? Buffer.from(a.pw.salt, 'base64') : Buffer.alloc(16);
+    const got = await scrypt(password, salt);
+    const ok = !!(a && a.pw) && crypto.timingSafeEqual(got, Buffer.from(a.pw.hash, 'base64'));
+    if (!ok) {
+      const n = ((f && !(f.until && f.until <= Date.now()) ? f.n : 0) || 0) + 1;
+      fails.set(u, { n, until: n >= 5 ? Date.now() + 300000 : 0 });
+      if (fails.size > 5000) fails.clear();
+      return { error: 'bad_login' };
+    }
+    fails.delete(u);
+    return { acct: pub(a) };
   }
 
   async get(id) { const a = await this.store.get(id); return a ? pub(a) : null; }
