@@ -8,8 +8,11 @@ const path = require('path');
 const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
-const api = require('./lib/api');
-const net = require('./lib/net');
+const fs = require('fs');
+// 폴더 구조(lib/, public/)로 올리든, 모든 파일을 한 폴더에 평평하게 올리든 동작하도록 경로를 자동 탐색
+const modPath = (n) => (fs.existsSync(path.join(__dirname, 'lib', n + '.js')) ? './lib/' + n : './' + n);
+const api = require(modPath('api'));
+const net = require(modPath('net'));
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -27,7 +30,15 @@ app.get('/api/catalog', (_req, res) => { res.set('Cache-Control', 'public, max-a
 app.post('/api/pull', (req, res) => { const r = api.handlePull(req.body, req.ip); res.status(r.status).json(r.body); });
 app.post('/api/inventory', (req, res) => { const r = api.handleInventory(req.body, req.ip); res.status(r.status).json(r.body); });
 
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m', extensions: ['html'] }));
+const PUB = path.join(__dirname, 'public');
+if (fs.existsSync(path.join(PUB, 'index.html'))) {
+  app.use(express.static(PUB, { maxAge: '5m', extensions: ['html'] }));
+} else {
+  // 평평한 구조: 클라이언트 파일 5개만 공개 (server.js 등은 노출하지 않음)
+  const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js'];
+  app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+  CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
+}
 
 const server = http.createServer(app);
 const io = new Server(server, {
