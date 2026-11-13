@@ -96,27 +96,49 @@
       default: break;
     }
   };
-  /** 골 노래 "티키 퐁크": 원본 음원은 쓸 수 없어서 직접 만든 효과음 + 음성 합성으로 부른다.
-   *  /goal.mp3 파일을 올려두면 그 파일을 대신 재생한다. */
+  /** 골 확정 리플레이 음악: 질주하는 펑크 리프 (디스토션 기타 + 베이스 + 드럼, 150BPM, 약 5초).
+   *  /goal.mp3 파일을 올려두면 그 파일을 대신 재생한다. 반환값: 박자 길이(초) — 화면 지진을 박자에 맞추는 데 쓴다. */
   let goalFile = null; // null: 확인 전, false: 없음, Audio: 있음
   fetch('/api/version', { cache: 'no-store' }).then((r) => r.json()).then((j) => { goalFile = j && j.goal ? new Audio('/goal.mp3') : false; }).catch(() => { goalFile = false; });
+  const distCurve = (() => { const n = 256, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = (i / (n - 1)) * 2 - 1; c[i] = Math.tanh(x * 7); } return c; })();
+  function guitar(freqs, d, vol, t0) { // 디스토션 파워코드
+    const c = ctx(); if (!c || muted) return;
+    const t = c.currentTime + t0, ws = c.createWaveShaper(), lp = c.createBiquadFilter(), g = c.createGain();
+    ws.curve = distCurve; lp.type = 'lowpass'; lp.frequency.value = 2600;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.setValueAtTime(vol, t + d * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    freqs.forEach((f) => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = (Math.random() - 0.5) * 12; o.connect(ws); o.start(t); o.stop(t + d + 0.03); });
+    ws.connect(lp).connect(g).connect(c.destination);
+  }
+  function bass(f, d, vol, t0) { tone(f, d, 'sawtooth', vol, t0); tone(f / 2, d, 'sine', vol * 1.4, t0); }
+  function kick(t0, v = 0.5) { tone(160, 0.16, 'sine', v, t0, 42); noise(0.02, 0.1, 3000, t0); }
+  function snare(t0, v = 0.3) { noise(0.16, v, 5200, t0); tone(200, 0.09, 'triangle', 0.18, t0, 120); }
+  function hat(t0, v = 0.06) { noise(0.03, v, 9000, t0); }
+  function crash(t0, v = 0.25) { noise(1.4, v, 7500, t0); tone(5200, 0.5, 'square', 0.02, t0); }
   RF.goalSong = () => {
-    if (muted) return;
-    if (goalFile) { try { goalFile.currentTime = 0; goalFile.volume = 0.9; goalFile.play(); setTimeout(() => { try { goalFile.pause(); } catch (e) { /* noop */ } }, 9000); return; } catch (e) { /* 합성음으로 */ } }
-    const B = 0.27; // 한 박자
-    const mel = [[1319, 1568, 330], [1175, 1480, 294], [1319, 1568, 330], [1568, 1760, 392]]; // 티·키 두 음 + 퐁 음높이
-    for (let r = 0; r < 4; r++) {
-      const t = r * B * 4;
-      tone(mel[r][0], 0.09, 'square', 0.07, t); tone(mel[r][1], 0.09, 'square', 0.07, t + B * 0.5); // 티-키
-      tone(mel[r][2] * 1.6, 0.22, 'sine', 0.2, t + B * 1.5, mel[r][2] * 0.5); // 퐁 (뿅 내려가는 소리)
-      noise(0.05, 0.12, 2500, t + B * 3); tone(900, 0.05, 'square', 0.05, t + B * 3); // 크
+    if (muted) return 0;
+    if (goalFile) { try { goalFile.currentTime = 0; goalFile.volume = 0.9; goalFile.play(); setTimeout(() => { try { goalFile.pause(); } catch (e) { /* noop */ } }, 9000); return 0.4; } catch (e) { /* 합성음으로 */ } }
+    const BEAT = 0.4, E = BEAT / 2; // 150BPM, 8분음표 = 0.2초
+    const root = [82.41, 82.41, 110, 123.47];        // 마디별 뿌리음 E E A B
+    const pw = (r) => [r * 2, r * 3, r * 4];          // 파워코드(1·5·8도)
+    const riff = [0, 0, 3, 0, 5, 0, 3, 0];            // 한 마디 8분음표 베이스 리프 (반음 이동)
+    crash(0, 0.22); kick(0, 0.5); guitar(pw(root[0]), 0.4, 0.12, 0);
+    for (let m = 0; m < 3; m++) {
+      const b0 = m * 4 * BEAT + (m === 0 ? BEAT : 0), r = root[m];
+      for (let k = 0; k < 8; k++) {
+        const t = m * 4 * BEAT + k * E; if (m === 0 && k < 2) continue;
+        bass(r * Math.pow(2, riff[k] / 12), E * 0.9, 0.11, t);
+        hat(t, k % 2 ? 0.05 : 0.08);
+        if (k % 4 === 0) kick(t, 0.4); if (k % 4 === 2) snare(t, 0.22);
+        if (k === 3 || k === 7) kick(t, 0.28);
+        if (k % 2 === 0) guitar(pw(r * Math.pow(2, riff[k] / 12)), E * 0.85, 0.075, t); // 펑크 8비트 코드 스트럼
+      }
+      void b0;
     }
-    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.3, 'triangle', 0.12, 4 * B * 4 + i * 0.09));
-    try { // 가사 부분 (브라우저 음성 합성; 한국어 음성이 없는 기기에서는 효과음만 나옵니다)
-      const ss = window.speechSynthesis; if (!ss) return;
-      ss.cancel(); const u = new SpeechSynthesisUtterance('티키 퐁크! 티키 퐁크! 티키 퐁크!');
-      u.lang = 'ko-KR'; u.rate = 1.25; u.pitch = 1.7; u.volume = 0.8; ss.speak(u);
-    } catch (e) { /* noop */ }
+    // 피날레: 키 올리고 크래시 + 마지막 일격
+    const tf = 3 * 4 * BEAT;
+    [0, 1, 2, 3].forEach((i) => { snare(tf + i * E * 0.5, 0.3); });
+    crash(tf + E * 2, 0.35); kick(tf + E * 2, 0.55); guitar(pw(164.81), 0.9, 0.14, tf + E * 2); bass(82.41, 0.9, 0.15, tf + E * 2);
+    return BEAT;
   };
   RF.isMuted = () => muted;
   RF.setMuted = (m) => { muted = !!m; LS.set('mute', muted); };
