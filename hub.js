@@ -207,6 +207,16 @@
   $('btnStock').addEventListener('click', () => { sfx('tap'); RF.go('stock'); });
   RF.hubStock = async () => { renderStock(); clearInterval(SK.timer); SK.timer = setInterval(() => { if (RF.screen !== 'stock') { clearInterval(SK.timer); SK.timer = 0; return; } tickSub(); }, 1000); await stLoad(); if (RF.screen === 'stock') renderStock(); };
 
+  // ───────────── 도박 RPG 이동 (확인 후 새 창으로: 축구 화면은 그대로 유지) ─────────────
+  const RPG_URL = 'https://random-football-cflg.onrender.com/rpg/';
+  $('btnRpg').addEventListener('click', () => {
+    sfx('tap');
+    RF.openModal(`<h3>⚔️ 도박 RPG</h3><p style="margin:8px 0">도박 RPG로 이동할까요?</p><p class="tiny">새 창으로 열려요. 지금 하던 축구 화면은 그대로 남아 있어요. RANDOM FOOTBALL 계정을 같이 쓰기 때문에 같은 아이디로 바로 이어서 할 수 있어요.</p>
+      <div class="st-act" style="margin-top:12px"><button id="rpgNo" class="btn big">아니요</button><button id="rpgYes" class="btn primary big">네</button></div>`);
+    $('rpgNo').addEventListener('click', () => RF.closeModal());
+    $('rpgYes').addEventListener('click', () => { window.open(RPG_URL, '_blank', 'noopener'); RF.closeModal(); });
+  });
+
   // ───────────── 채팅 ─────────────
   const CH = { joined: false, admin: false, unread: 0, hist: [] };
   const CERR = { slow: '너무 빨라요! 잠깐만요', repeat: '같은 말은 반복할 수 없어요', empty: '', not_joined: '채팅에 연결 중이에요' };

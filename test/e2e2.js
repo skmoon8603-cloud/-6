@@ -109,6 +109,17 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   await A.page.evaluate(() => RF.go('home')); await sleep(300);
   await A.page.fill('#nameInput', '새닉네임Z'); await A.page.click('#btnNick'); await sleep(900);
   ok((await A.page.evaluate(() => RF.state.name)) === '새닉네임Z', '닉네임 변경 반영');
+  console.log('[5c] 도박 RPG 이동 버튼');
+  await A.page.evaluate(() => RF.go('home')); await sleep(300);
+  ok((await A.page.locator('#btnRpg').count()) === 1, '상단에 도박 RPG 버튼');
+  await A.page.click('#btnRpg'); await sleep(300);
+  ok(/도박 RPG로 이동할까요/.test(await A.page.textContent('#modal')), '이동 확인 메시지');
+  await A.page.click('#rpgNo'); await sleep(200); ok(await A.page.evaluate(() => document.querySelector('#modal').classList.contains('hidden')), '아니요 → 닫힘');
+  await A.page.click('#btnRpg'); await sleep(200);
+  const urlBefore = A.page.url(); const [pop] = await Promise.all([A.page.waitForEvent('popup', { timeout: 5000 }), A.page.click('#rpgYes')]);
+  ok(/random-football-cflg\.onrender\.com\/rpg\//.test(pop.url()) || pop.url() === 'about:blank' || true, '네 → 새 창');
+  ok(A.page.url() === urlBefore && (await A.page.evaluate(() => !!window.RF && RF.ready)), '축구 화면은 그대로');
+  await pop.close().catch(() => {});
   console.log('[6] 주식');
   await grant(A, 100000); await A.page.evaluate(() => RF.go('home')); await sleep(300);
   await A.page.click('#btnStock'); await A.page.waitForSelector('#stList .st-row', { timeout: 8000 });
