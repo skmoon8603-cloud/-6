@@ -27,7 +27,9 @@ function attStatus(a) {
 
 const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (모든 계정의 돈 관리·계정 삭제 권한)
 const isAdmin = (id) => id === ADMIN_ID;
-const nickOf = (a) => (a.id.startsWith('u-') ? a.id.slice(2) : a.nick || 'PLAYER');
+// 삭제된 캐릭터가 보관함에 남아 있어도 화면에는 내려가지 않게 거른다
+const knownInv = (inv) => { const o = {}; for (const k in inv || {}) if (C.BY_ID[k]) o[k] = inv[k]; return o; };
+const nickOf = (a) => (a.nickSet && a.nick ? a.nick : a.id.startsWith('u-') ? a.id.slice(2) : a.nick || 'PLAYER'); // 직접 바꾼 닉네임이 있으면 그것, 없으면 아이디
 
 const STAKES = [0, 1000, 2000, 5000, 10000];
 const MAX_BAL = 1e9;
@@ -35,7 +37,7 @@ const cleanNick = (n) => (String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').tri
 
 const pub = (a) => ({
   // 닉네임은 로그인 아이디로 고정
-  id: a.id, email: a.email, nick: a.id.startsWith('u-') ? a.id.slice(2) : a.nick, bal: a.bal, inv: a.inv, pulls: a.pulls,
+  id: a.id, email: a.email, nick: nickOf(a), bal: a.bal, inv: knownInv(a.inv), pulls: a.pulls,
   locked: a.locked ? a.locked.stake : 0,
   secret: C.secretFor(a.inv), // 보유한 숨김(초월) 캐릭터의 실제 정보
   att: attStatus(a),
@@ -100,8 +102,21 @@ class Accounts {
   async get(id) { const a = await this.store.get(id); return a ? pub(a) : null; }
   async raw(id) { return this.store.get(id); }
 
-  /** 닉네임은 아이디로 고정되어 변경할 수 없다 */
-  async setNick(id) { const a = await this.store.get(id); return a ? pub(a) : null; }
+  /** 닉네임 변경 (아이디는 그대로). 2~12자, 다른 사람의 닉네임/아이디와 겹치면 안 되고, 30초에 한 번만 바꿀 수 있다. */
+  async setNick(id, raw) {
+    const nick = cleanNick(raw);
+    if (nick.length < 2) return { error: 'invalid' };
+    const low = nick.toLowerCase();
+    const all = (await this.store.listAll()).filter((x) => !String(x.id).startsWith('__') && x.id !== id);
+    if (all.some((x) => nickOf(x).toLowerCase() === low || (x.id.startsWith('u-') && x.id.slice(2).toLowerCase() === low))) return { error: 'taken' };
+    return this.store.txn([id], (m) => {
+      const a = m[id]; if (!a) return { error: 'no_account' };
+      if (nickOf(a) === nick) return { ok: true, account: pub(a) };
+      const t = clock(); if (a.nickAt && t - a.nickAt < 30000) return { error: 'slow' };
+      a.nick = nick; a.nickSet = true; a.nickAt = t;
+      return { ok: true, account: pub(a) };
+    });
+  }
 
   /** n회 뽑기 (1회 PULL_COST 원). 서버 난수/서버 잔액으로만 결정 */
   async pull(id, n, rand01) {
@@ -271,6 +286,17 @@ class Accounts {
     });
   }
 
+  /** 삭제된 캐릭터를 모든 계정 보관함과 이적시장 매물에서 치운다 (서버 시작 시 실행, 없으면 아무 일도 안 함) */
+  async purgeRemoved(pids) {
+    let n = 0;
+    for (const a0 of await this.store.listAll()) {
+      if (String(a0.id).startsWith('__') || !pids.some((p) => a0.inv && p in a0.inv)) continue;
+      await this.store.txn([a0.id], (m) => { const a = m[a0.id]; if (a) for (const p of pids) if (p in a.inv) { delete a.inv[p]; n++; } });
+    }
+    await this.store.txn(['__market'], (m) => { const d = m['__market']; if (d && d.list) { const k = d.list.length; d.list = d.list.filter((l) => !pids.includes(l.pid)); n += k - d.list.length; } });
+    return n;
+  }
+
   async grantAllByNick(nick) {
     nick = String(nick).toLowerCase();
     let ids = await this.store.findByNick(nick);
@@ -297,4 +323,4 @@ class Accounts {
   }
 }
 
-module.exports = { Accounts, STAKES, pub, cleanNick, setClock, isAdmin, ADMIN_ID };
+module.exports = { Accounts, STAKES, pub, cleanNick, nickOf, setClock, isAdmin, ADMIN_ID };

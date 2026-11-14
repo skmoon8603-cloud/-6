@@ -55,7 +55,8 @@ const onMarket = (op, uid, out) => {
   if (ioRef) ioRef.emit('market:changed');
 };
 const onStock = (uid, out) => pushAcct(uid, out.acct);
-const A = api.create({ accounts, auth, market, onMarket, stocks, onStock });
+const onNick = (uid, nick) => { if (!ioRef) return; for (const [, s] of ioRef.of('/').sockets) if (s.data && s.data.uid === uid) s.data.nick = nick; ioRef.emit('pv:changed'); }; // 접속 중인 화면(채팅/접속자 목록)에도 새 닉네임 반영
+const A = api.create({ accounts, auth, market, onMarket, stocks, onStock, onNick });
 let game = { stats: () => ({}), stop() {} };
 let bounce = { stop() {} };
 app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.stats(), uptime: Math.round(process.uptime()) }));
@@ -103,6 +104,7 @@ const io = new Server(server, {
   await store.init();
   const n = await accounts.refundAllLocked();
   if (n) console.log('[내기] 서버 재시작으로 중단된 내기 환급:', n);
+  try { const n = await accounts.purgeRemoved(['M06']); if (n) console.log('[삭제] 이지후 캐릭터 정리:', n); } catch (e) { console.error('[삭제] 오류', e.message); }
   try { const t = await accounts.grantTier(ADMIN_ID_, 33, 'grantedTop'); console.log('[지급] 관리자 티어 승엄급:', t.ok ? (t.already ? '이미 지급됨' : '완료') : '계정 없음'); } catch (e) { console.error('[지급] 오류', e.message); }
   try { const h = await accounts.grantItem(ADMIN_ID_, 'X77', 'grantedHid'); console.log('[지급] 관리자 문서경:', h.ok ? (h.already ? '이미 지급됨' : '완료') : '계정 없음'); } catch (e) { console.error('[지급] 오류', e.message); }
   try { const r = await accounts.revokeItemByNick('jong', 'X77', 'revokedHid'); console.log('[회수] jong 문서경:', r.ok ? (r.already ? '이미 처리됨' : r.had ? '회수 완료' : '보유하지 않음') : `실패 (일치하는 계정 ${r.found}개)`); } catch (e) { console.error('[회수] 오류', e.message); }

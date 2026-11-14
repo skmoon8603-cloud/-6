@@ -9,12 +9,11 @@
  * ※ '원'은 게임 안에서만 쓰는 가상 재화입니다.
  */
 const C = require('./catalog');
-const { pub } = require('./accounts');
+const { pub, nickOf } = require('./accounts');
 
 const MID = '__market';
 const QUICK = { common: 300, rare: 800, hero: 2500, legend: 8000, myth: 30000 }; // 즉시판매가 = 최저 등록가
 const MAX_PRICE = 5000000, MAX_LISTINGS = 8, FEE_PCT = 5, MAX_BAL = 1e9;
-const nickOf = (a) => (a.id.startsWith('u-') ? a.id.slice(2) : a.nick || 'PLAYER');
 const sellable = (pid) => { const p = C.BY_ID[pid]; return p && !p.starter && !p.hidden && QUICK[p.rarity] ? p : null; };
 const range = (p) => [QUICK[p.rarity], Math.min(MAX_PRICE, QUICK[p.rarity] * 200)];
 const fresh = () => ({ id: MID, list: [], seq: 0, last: {}, sysDay: -1 });

@@ -82,7 +82,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   A.errs.push(...C.errs);
   console.log('[5] 접속자 목록 + 대결 신청');
   const D = await mk('D'), E = await mk('E');
-  await D.page.click('#nav [data-go=chat]'); await E.page.click('#nav [data-go=home]'); await D.page.click('#chTabs [data-t=people]'); await sleep(900);
+  await D.page.click('#nav [data-go=people]'); await E.page.click('#nav [data-go=home]'); await sleep(900);
   const uidE = await E.page.evaluate(() => RF.state.uid);
   ok((await D.page.locator('#pvPane .pv-row').count()) >= 3, '접속자 목록에 여러 명 표시');
   ok(await D.page.locator(`[data-inv="${uidE}"][data-g=soccer]`).isEnabled(), '대기 중인 사람에게 신청 버튼 활성');
@@ -95,7 +95,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   await shot(E, 'invited-room');
   await D.page.click('#btnLeave'); await E.page.click('#btnLeave'); await sleep(800);
   await sleep(3500);
-  await D.page.click('#nav [data-go=chat]'); await D.page.click('#chTabs [data-t=people]'); await sleep(500);
+  await D.page.click('#nav [data-go=people]'); await sleep(500);
   await D.page.click(`[data-inv="${uidE}"][data-g=bounce]`); await E.page.waitForSelector('#invites .inv', { timeout: 5000 });
   await E.page.click('#invites .inv [data-a="0"]'); await sleep(600);
   ok(/거절/.test(await D.page.textContent('#toast')), '거절하면 신청자에게 알림');
@@ -105,6 +105,10 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   await D.page.waitForSelector('#scr-bounce:not(.hidden)', { timeout: 8000 }); await E.page.waitForSelector('#scr-bounce:not(.hidden)', { timeout: 8000 }); await sleep(2500);
   ok(await D.page.evaluate(() => document.getElementById('bWait').classList.contains('hidden')), '수락하자 원 바운스 방이 만들어지고 둘이 입장해 시작');
   await shot(D, 'bounce-invited');
+  console.log('[5b] 닉네임 변경');
+  await A.page.evaluate(() => RF.go('home')); await sleep(300);
+  await A.page.fill('#nameInput', '새닉네임Z'); await A.page.click('#btnNick'); await sleep(900);
+  ok((await A.page.evaluate(() => RF.state.name)) === '새닉네임Z', '닉네임 변경 반영');
   console.log('[6] 주식');
   await grant(A, 100000); await A.page.evaluate(() => RF.go('home')); await sleep(300);
   await A.page.click('#btnStock'); await A.page.waitForSelector('#stList .st-row', { timeout: 8000 });

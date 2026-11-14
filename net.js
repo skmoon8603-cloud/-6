@@ -11,7 +11,7 @@ const K_HID = require('./catalog').HIDDEN_ID;
 const K = require('./const');
 const C = require('./catalog');
 const { Match } = require('./engine');
-const { STAKES } = require('./accounts');
+const { STAKES, nickOf } = require('./accounts');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 6;
@@ -53,7 +53,7 @@ function attach(io, { accounts, auth, autoloop = true }) {
   async function mkPlayer(socket, lineupReq) {
     const a = await accounts.get(socket.data.uid);
     if (!a) return null;
-    return { uid: a.id, name: a.nick || 'PLAYER', socket, connected: true, ready: false, inv: a.inv, lineup: C.validateLineup(lineupReq, a.inv), dcAt: 0, bal: a.bal };
+    return { uid: a.id, name: nickOf(a), socket, connected: true, ready: false, inv: a.inv, lineup: C.validateLineup(lineupReq, a.inv), dcAt: 0, bal: a.bal };
   }
 
   function publicState(room, forPl) {
@@ -148,7 +148,7 @@ function attach(io, { accounts, auth, autoloop = true }) {
       const humans = room.players.filter((p) => p.uid !== 'bot');
       for (const p of humans) { // 최신 보관함/잔액으로 편성 재검증
         const a = await accounts.get(p.uid);
-        if (a) { p.inv = a.inv; p.lineup = C.validateLineup(p.lineup, a.inv); p.name = a.nick || p.name; }
+        if (a) { p.inv = a.inv; p.lineup = C.validateLineup(p.lineup, a.inv); p.name = nickOf(a) || p.name; }
       }
       if (rooms.get(room.code) !== room) return;
       if (room.stake > 0 && !room.practice) {
@@ -259,7 +259,7 @@ function attach(io, { accounts, auth, autoloop = true }) {
       if (!allow(20)) return;
       const { room, pl } = memberOf(); if (!pl || room.state === 'match' || room.starting) return;
       const a = await accounts.get(uid); if (!a) return;
-      pl.inv = a.inv; pl.bal = a.bal; pl.name = a.nick || pl.name; pl.lineup = C.validateLineup(d && d.lineup, a.inv);
+      pl.inv = a.inv; pl.bal = a.bal; pl.name = nickOf(a) || pl.name; pl.lineup = C.validateLineup(d && d.lineup, a.inv);
       pl.ready = false; pushState(room);
     }));
 

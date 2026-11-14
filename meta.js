@@ -249,14 +249,14 @@
   };
 
   // ───────────── 화면 전환 ─────────────
-  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'rank', 'market', 'stock', 'chat', 'room'];
+  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'rank', 'market', 'stock', 'chat', 'people', 'room'];
   RF.go = (name) => {
     if (!RF.cat && name !== 'home') { RF.toast('서버 데이터를 불러오는 중입니다', true); return; }
     if (name === 'home' && RF.hooks.inRoom && RF.hooks.inRoom()) name = 'room';
     SCREENS.forEach((s) => $('scr-' + s).classList.toggle('active', s === name));
     document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === name || (name === 'dex' && b.dataset.go === 'box')));
     RF.screen = name;
-    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, rank: renderRank, market: () => RF.hubMarket && RF.hubMarket(), stock: () => RF.hubStock && RF.hubStock(), chat: () => RF.hubChat && RF.hubChat(), room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
+    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, rank: renderRank, market: () => RF.hubMarket && RF.hubMarket(), stock: () => RF.hubStock && RF.hubStock(), chat: () => RF.hubChat && RF.hubChat(), people: () => RF.hubPeople && RF.hubPeople(), room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
     const sc = $('scr-' + name); if (sc) sc.scrollTop = 0;
   };
   document.querySelectorAll('#nav button').forEach((b) => b.addEventListener('click', () => { RF.sfx('tap'); RF.go(b.dataset.go); }));
@@ -377,7 +377,7 @@
 
   function renderHome() {
     renderAttend(); loadPlayers().then(renderTopLine);
-    $('nameInput').value = S.name; $('profAv').textContent = (S.name || 'P').slice(0, 1).toUpperCase(); $('profOvr').textContent = teamAvg(); $('profTier').innerHTML = S.tier ? `${RF.tierChip(S.tier)}<span class="tdots">${Array.from({ length: S.tier.step }, (_, k) => `<i class="${S.tier.top || k < S.tier.into ? 'on' : ''}"></i>`).join('')}</span><small>${S.pts}점 · 이기면 +1 / 지면 −1</small>` : ''; $('profSub').textContent = won(S.bal) + ' · 획득 선수 ' + Object.keys(S.inv).length + '명'; $('acctMail').textContent = S.email || '';
+    if (document.activeElement !== $('nameInput')) $('nameInput').value = S.name; $('profAv').textContent = (S.name || 'P').slice(0, 1).toUpperCase(); $('profOvr').textContent = teamAvg(); $('profTier').innerHTML = S.tier ? `${RF.tierChip(S.tier)}<span class="tdots">${Array.from({ length: S.tier.step }, (_, k) => `<i class="${S.tier.top || k < S.tier.into ? 'on' : ''}"></i>`).join('')}</span><small>${S.pts}점 · 이기면 +1 / 지면 −1</small>` : ''; $('profSub').textContent = won(S.bal) + ' · 획득 선수 ' + Object.keys(S.inv).length + '명'; $('acctMail').textContent = S.email || '';
     $('homeTeam').innerHTML = S.lineup.map((id, i) => {
       const p = RF.byId[id], c = rarOf(p.rarity).color;
       return `<div class="mini" style="--rc:${c}"><b>${effOvr(id, RF.cat.slots[i])}</b>${RF.cat.slots[i]}</div>`;
@@ -389,7 +389,17 @@
   $('btnLogout').addEventListener('click', () => RF.logout(false));
   $('btnDex').addEventListener('click', () => RF.go('dex'));
   $('btnDexBack').addEventListener('click', () => RF.go('box'));
-  $('nameInput').readOnly = true; // 닉네임은 아이디로 고정
+  // 닉네임 변경 (아이디는 그대로)
+  { const NERR = { invalid: '닉네임은 2~12자(글자·숫자·공백·_·-)로 정해 주세요', taken: '이미 사용 중인 닉네임이에요', slow: '30초 뒤에 다시 바꿀 수 있어요', no_account: '로그인이 필요해요' };
+    const saveNick = async () => {
+      const v = $('nameInput').value.trim(); if (v === S.name) return;
+      try { const r = await RF.api('/api/nick', { nick: v }); const j = await r.json();
+        if (!r.ok || j.error) { RF.toast(NERR[j.error] || '변경하지 못했어요', true); $('nameInput').value = S.name; return; }
+        RF.setAccount(j.account); RF.toast(`닉네임을 "${j.account.nick}"(으)로 바꿨어요`); RF.sfx('tap');
+      } catch (e) { RF.toast('네트워크 오류', true); $('nameInput').value = S.name; }
+    };
+    $('btnNick').addEventListener('click', saveNick);
+    $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveNick(); $('nameInput').blur(); } }); }
 
   // ───────────── 뽑기 ─────────────
   let busy = false;

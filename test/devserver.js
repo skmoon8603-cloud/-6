@@ -20,7 +20,7 @@ const market = new Market(store);
 const { Stocks } = require('../lib/stocks');
 const stocks = new Stocks(store);
 let ioRef = null;
-const A = api.create({ accounts, auth, market, stocks, onStock: (uid, out) => { for (const [, sk] of live) if (sk.data && sk.data.uid === uid && out.acct) sk.emit('account', out.acct); }, onMarket: (op, uid, out) => { const push = (u, a) => { if (a) for (const [, sk] of live) if (sk.data && sk.data.uid === u) sk.emit('account', a); }; push(uid, out.acct); if (op === 'buy') push(out.seller, out.sellerAcct); if (ioRef) ioRef.emit('market:changed'); } });
+const A = api.create({ accounts, auth, market, stocks, onNick: (uid, nick) => { for (const [, sk] of live) if (sk.data && sk.data.uid === uid) sk.data.nick = nick; if (ioRef) ioRef.emit('pv:changed'); }, onStock: (uid, out) => { for (const [, sk] of live) if (sk.data && sk.data.uid === uid && out.acct) sk.emit('account', out.acct); }, onMarket: (op, uid, out) => { const push = (u, a) => { if (a) for (const [, sk] of live) if (sk.data && sk.data.uid === u) sk.emit('account', a); }; push(uid, out.acct); if (op === 'buy') push(out.seller, out.sellerAcct); if (ioRef) ioRef.emit('market:changed'); } });
 const mw = [];
 
 const PUB = path.join(__dirname, '..', 'public');

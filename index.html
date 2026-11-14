@@ -33,7 +33,7 @@
         <div class="prof-av" id="profAv">P</div>
         <div class="prof-mid">
           <label class="lbl" for="nameInput">내 클럽</label>
-          <input id="nameInput" class="prof-name" maxlength="20" readonly autocomplete="off">
+          <div class="nick-row"><input id="nameInput" class="prof-name" maxlength="12" autocomplete="off" spellcheck="false" aria-label="닉네임"><button id="btnNick" class="nick-btn" aria-label="닉네임 변경">✏️ 변경</button></div>
           <div id="profSub" class="prof-sub"></div>
           <div id="profTier" class="prof-tier"></div>
         </div>
@@ -144,7 +144,6 @@
     <!-- 채팅 -->
     <section id="scr-chat" class="screen">
       <div class="ch-head"><div class="sec-title" style="margin:0">💬 소셜</div><div id="chOnline" class="ch-on"><i></i><span>0명</span></div></div>
-      <div class="seg" id="chTabs"><button data-t="chat" class="on">💬 채팅</button><button data-t="people">👥 접속자 · 대결 신청 <em id="pvCnt" class="cnt">0</em></button></div>
       <div id="chPane" class="ch-pane">
         <div id="chList" class="ch-list"></div>
         <form id="chForm" class="ch-form" autocomplete="off">
@@ -152,7 +151,12 @@
           <button class="btn primary" id="chSend" type="submit">전송</button>
         </form>
       </div>
-      <div id="pvPane" class="pv-pane hidden"></div>
+    </section>
+
+    <!-- 접속자 · 대결 신청 -->
+    <section id="scr-people" class="screen">
+      <div class="ch-head"><div class="sec-title" style="margin:0">👥 접속자 · 대결 신청</div></div>
+      <div id="pvPane" class="pv-pane"></div>
     </section>
 
     <!-- 편성 -->
@@ -171,6 +175,7 @@
     <button data-go="box"><i>🎒</i><span>보관함</span></button>
     <button data-go="team"><i>📋</i><span>편성</span></button>
     <button data-go="chat"><i>💬</i><span>채팅</span><em id="chBadge" class="badge hidden">0</em></button>
+    <button data-go="people"><i>👥</i><span>접속자</span><em id="pvCnt" class="badge hidden">0</em></button>
     <button data-go="rank"><i>🏆</i><span>랭킹</span></button>
   </nav>
 

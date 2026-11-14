@@ -53,14 +53,13 @@ const OVR_W = {
 const POSS = ['GK', 'DF', 'MF', 'FW'];
 // 직접 만든 캐릭터 (해당 등급의 기존 자리 id 를 대체). 능력치 gk=골키퍼 sta=체력
 const CUSTOM = {
-  C02: { name: '라태양', st: { gk: 12, sta: 55, def: 50, pas: 52, sht: 48, spd: 58, dri: 50 } }, // 일반 (능력치는 임의 설정)
+  C02: { name: '라태양', rar: 'rare', st: { gk: 12, sta: 62, def: 52, pas: 58, sht: 58, spd: 68, dri: 62 } }, // 일반 → 희귀로 승급 (능력치 상향, 임의 설정)
   C03: { name: '오도현', st: { gk: 10, sta: 52, def: 56, pas: 50, sht: 42, spd: 55, dri: 46 } }, // 일반 (능력치는 임의 설정)
   R02: { name: '류현중', st: { gk: 18, sta: 62, def: 58, pas: 66, sht: 64, spd: 66, dri: 64 } }, // 희귀 (능력치는 임의 설정)
   R03: { name: '이승현', st: { gk: 15, sta: 66, def: 68, pas: 58, sht: 56, spd: 62, dri: 60 } }, // 희귀 (능력치는 임의 설정)
   H03: { name: '이태이', st: { gk: 20, sta: 74, def: 66, pas: 74, sht: 72, spd: 72, dri: 72 } }, // 영웅(에픽) (능력치는 임의 설정)
   L05: { name: '위호진', st: { gk: 40, sta: 80, def: 78, pas: 80, sht: 78, spd: 76, dri: 78 } }, // 전설 (능력치는 임의 설정)
-  M06: { name: '이지후', st: { gk: 95, sta: 82, def: 80, pas: 78, sht: 92, spd: 80, dri: 75 } }, // 신화 · 골키퍼인데 슈팅이 높음
-  C01: { name: '왕정훈', st: { gk: 14, sta: 54, def: 63, pas: 48, sht: 36, spd: 50, dri: 50 } }, // 일반 · 수비수
+  C01: { name: '왕정훈', rar: 'rare', st: { gk: 14, sta: 64, def: 72, pas: 58, sht: 46, spd: 60, dri: 60 } }, // 일반 → 희귀로 승급 · 수비수 (능력치 상향)
   H01: { name: '박종모', st: { gk: 15, sta: 72, def: 60, pas: 72, sht: 62, spd: 74, dri: 82 } }, // 영웅(에픽) · 드리블형
   H02: { name: '최범규', st: { gk: 14, sta: 70, def: 52, pas: 66, sht: 80, spd: 76, dri: 80 } }, // 영웅(에픽) · 드리블+슛
 
@@ -73,7 +72,30 @@ const CUSTOM = {
   L02: { name: '김지용', st: { gk: 70, sta: 80, def: 80, pas: 70, sht: 93, spd: 67, dri: 70 } },
   L03: { name: '김도윤', st: { gk: 67, sta: 80, def: 75, pas: 80, sht: 80, spd: 80, dri: 70 } },
   L04: { name: '모똥원', st: { gk: 80, sta: 80, def: 90, pas: 70, sht: 60, spd: 70, dri: 90 } },
+  // ── 전설 (각자 한 가지가 특출난 능력치. 나머지 수치는 임의 설정) ──
+  L01: { name: '주시완', st: { gk: 45, sta: 80, def: 70, pas: 78, sht: 78, spd: 84, dri: 94 } }, // 드리블
+  L06: { name: '황주원', st: { gk: 40, sta: 78, def: 62, pas: 74, sht: 93, spd: 82, dri: 92 } }, // 슛 · 드리블
+  L07: { name: '허신', st: { gk: 45, sta: 96, def: 80, pas: 78, sht: 72, spd: 78, dri: 74 } }, // 체력
+  L08: { name: '송인우', st: { gk: 40, sta: 80, def: 66, pas: 72, sht: 78, spd: 96, dri: 82 } }, // 속도
+  L09: { name: '홍서현', st: { gk: 45, sta: 82, def: 70, pas: 95, sht: 72, spd: 74, dri: 80 } }, // 패스
+  L10: { name: '김준협', st: { gk: 60, sta: 84, def: 95, pas: 70, sht: 60, spd: 76, dri: 70 } }, // 수비
+  // ── 영웅(에픽) ──
+  H04: { name: '김동우', st: { gk: 15, sta: 70, def: 52, pas: 66, sht: 80, spd: 76, dri: 74 } },
+  H05: { name: '박사하', st: { gk: 16, sta: 76, def: 62, pas: 80, sht: 66, spd: 70, dri: 74 } },
+  H06: { name: '박지용', st: { gk: 18, sta: 74, def: 82, pas: 66, sht: 52, spd: 68, dri: 62 } },
+  H07: { name: '문은우', st: { gk: 14, sta: 72, def: 54, pas: 64, sht: 70, spd: 84, dri: 76 } },
+  H08: { name: '손재현', st: { gk: 16, sta: 74, def: 60, pas: 82, sht: 68, spd: 68, dri: 72 } },
+  H09: { name: '채시완', st: { gk: 20, sta: 78, def: 80, pas: 64, sht: 54, spd: 66, dri: 60 } },
+  H10: { name: '신동윤', st: { gk: 12, sta: 68, def: 50, pas: 62, sht: 82, spd: 74, dri: 76 } },
+  H11: { name: '황순민', st: { gk: 15, sta: 82, def: 64, pas: 76, sht: 64, spd: 70, dri: 72 } },
+  H12: { name: '고예헌', st: { gk: 88, sta: 66, def: 60, pas: 62, sht: 40, spd: 52, dri: 50 } }, // 골키퍼
+  H13: { name: '우지민', st: { gk: 14, sta: 70, def: 52, pas: 68, sht: 70, spd: 78, dri: 82 } },
+  H14: { name: '허시화', st: { gk: 18, sta: 76, def: 76, pas: 74, sht: 58, spd: 68, dri: 66 } },
+  // ── 희귀 ──
+  R01: { name: '김동민', st: { gk: 12, sta: 60, def: 44, pas: 56, sht: 68, spd: 66, dri: 64 } },
+  R04: { name: '최선율', st: { gk: 14, sta: 66, def: 56, pas: 68, sht: 56, spd: 60, dri: 62 } },
 };
+const REMOVED = new Set(['M06']); // 삭제된 캐릭터 (이지후): 난수 순서는 유지한 채 목록에서만 뺀다
 function ovrOf(pos, st) {
   const w = OVR_W[pos];
   let s = 0;
@@ -153,8 +175,10 @@ function buildCatalog() {
         item.name = cu.name; item.stats = { ...cu.st }; item.pos = bestPos(cu.st);
         item.ovrBy = ovrBy(item.stats);
       }
+      if (cu && cu.rar) item.rarity = cu.rar; // 등급 승급 (id 는 그대로 → 보유자도 그대로 승급)
       item.ovr = meanOf(item.stats); // 보관함/도감에 보이는 점수 = 모든 능력치의 평균
       if (rar.hidden) item.hidden = true;
+      if (REMOVED.has(id)) continue;
       list.push(item);
     }
   });

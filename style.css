@@ -588,3 +588,7 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .st-qty{display:flex;align-items:center;gap:6px;margin-top:8px}.st-qty button{padding:8px 10px;border-radius:10px;border:1px solid #ffffff2a;background:#ffffff10;color:inherit;font-weight:700}
 .st-qty input{flex:1;min-width:0;padding:9px;border-radius:10px;border:1px solid #ffffff2a;background:#0008;color:#fff;font-size:16px;text-align:right}
 .st-act{display:grid;grid-template-columns:1fr 1fr;gap:8px}.st-buy{background:#e03131;color:#fff}.st-sell{background:#1c7ed6;color:#fff}.st-act .btn:disabled{opacity:.4}
+
+.nick-row{display:flex;gap:6px;align-items:center}.nick-row .prof-name{flex:1;min-width:0}
+.nick-btn{flex:none;padding:5px 9px;border-radius:10px;border:1px solid #ffffff33;background:#ffffff14;color:#fff;font-size:11px;font-weight:800}
+#nav button{font-size:9.5px}

@@ -149,11 +149,11 @@ function goalkeeper(m, p, dt) {
   const ownX = side === 0 ? 0 : W;
   const gx = ownX + dir * 34;
   const bs = Math.hypot(b.vx, b.vy);
-  // 볼 소유 → 잠깐 후 배급
+  // 볼 소유 → 받자마자(0.08초) 팀원에게 패스
   if (m.canReach(p) && bs < 90) {
-    p.gkT = (p.gkT === undefined ? 0.4 + (1 - sk) * 0.8 : p.gkT) - dt;
+    p.gkT = (p.gkT === undefined ? 0.08 : p.gkT) - dt;
     p.ang = side === 0 ? 0 : Math.PI;
-    if (p.gkT <= 0) { p.gkT = undefined; p.aiNoise = (1 - sk) * 0.5; m.doPass(p, true); p.aiNoise = 0; }
+    if (p.gkT <= 0) { p.gkT = undefined; p.aiNoise = (1 - sk) * 0.25; m.doPass(p, true); p.aiNoise = 0; }
     return;
   }
   p.gkT = undefined;

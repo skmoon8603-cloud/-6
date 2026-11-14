@@ -1,4 +1,5 @@
 'use strict';
+const { nickOf } = require('./accounts');
 /**
  * 접속자 목록 + 대결 신청(초대).
  *  - 접속 중인 사람과 상태(대기 중 / 축구 중 / 원 바운스 중)를 보여준다.
@@ -25,7 +26,7 @@ function attach(io, { accounts }) {
   io.on('connection', (socket) => {
     const d = socket.data = socket.data || {};
     if (!d.uid) return;
-    accounts.get(d.uid).then((a) => { if (a) { d.nick = a.nick; io.emit('pv:changed'); } }).catch(() => {});
+    accounts.get(d.uid).then((a) => { if (a) { d.nick = nickOf(a); io.emit('pv:changed'); } }).catch(() => {});
     socket.on('pv:list', (_p, ack) => { if (typeof ack === 'function') ack({ list: list(), me: d.uid }); });
 
     socket.on('pv:invite', (p, ack) => {

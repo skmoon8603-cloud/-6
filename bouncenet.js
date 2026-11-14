@@ -8,7 +8,7 @@
 const crypto = require('crypto');
 const K = require('./const');
 const { OneBounce, C } = require('./onebounce');
-const { STAKES } = require('./accounts');
+const { STAKES, nickOf } = require('./accounts');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_ROOMS = Number(process.env.MAX_ROOMS) || 500;
@@ -125,7 +125,7 @@ function attach(io, { accounts, autoloop = true }) {
     const allow = (limit) => { const now = Date.now(); if (now - bucket.t > 1000) bucket = { t: now, n: 0 }; return ++bucket.n <= limit; };
     const ack = (cb, v) => { if (typeof cb === 'function') cb(v); };
     const safe = (fn) => async (...a) => { try { await fn(...a); } catch (e) { log(e); const cb = a[a.length - 1]; if (typeof cb === 'function') cb({ ok: false, err: 'server_error' }); } };
-    const mk = async () => { const a = await accounts.get(uid); return a ? { uid, name: a.nick || 'PLAYER', socket } : null; };
+    const mk = async () => { const a = await accounts.get(uid); return a ? { uid, name: nickOf(a), socket } : null; };
 
     const enter = async (d, cb, mode) => {
       if (!allow(10)) return ack(cb, { ok: false, err: 'invalid' });

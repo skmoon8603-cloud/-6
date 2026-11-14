@@ -8,6 +8,7 @@
 const HIST = 80, MAXLEN = 200, GAP_MS = 1200;
 const clean = (t) => String(t == null ? '' : t).replace(/[\u0000-\u001f\u007f​-‏‪-‮⁦-⁩]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAXLEN);
 
+const { nickOf } = require('./accounts');
 function attach(io, { accounts, isAdmin }) {
   const hist = []; let seq = 0;
   const online = () => { let n = 0; const seen = new Set(); for (const [, s] of io.of('/').sockets) if (s.data && s.data.chat && !seen.has(s.data.uid)) { seen.add(s.data.uid); n++; } return n; };
@@ -20,7 +21,7 @@ function attach(io, { accounts, isAdmin }) {
     socket.on('chat:join', async (_p, ack) => {
       try {
         const a = await accounts.get(d.uid); if (!a) return;
-        d.nick = a.nick; d.chat = true; d.last = 0; d.rep = 0; d.prev = '';
+        d.nick = nickOf(a); d.chat = true; d.last = 0; d.rep = 0; d.prev = '';
         socket.join('chat');
         if (typeof ack === 'function') ack({ hist, online: online(), admin: isAdmin(d.uid) });
         pushOnline();

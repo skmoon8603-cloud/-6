@@ -21,7 +21,7 @@ function catalogPayload() {
   };
 }
 
-function create({ accounts, auth, market, onMarket, stocks, onStock }) {
+function create({ accounts, auth, market, onMarket, stocks, onStock, onNick }) {
   const rand01 = () => require('crypto').randomInt(0, 1e9) / 1e9;
   const bearer = (req) => { const h = req.headers.authorization || ''; return h.startsWith('Bearer ') ? h.slice(7) : ''; };
   const who = (req) => { const s = auth.verifySession(bearer(req)); return s ? s.uid : null; };
@@ -134,8 +134,9 @@ function create({ accounts, auth, market, onMarket, stocks, onStock }) {
       return { status: out.error ? (out.error === 'not_enough' ? 402 : out.error === 'stale' ? 409 : 400) : 200, body: out };
     }),
     nick: authed(async (req, uid) => {
-      const a = await accounts.setNick(uid, req.body && req.body.nick);
-      return a ? { status: 200, body: { account: a } } : { status: 400, body: { error: 'invalid' } };
+      const r = await accounts.setNick(uid, req.body && req.body.nick);
+      if (r && r.ok && onNick) onNick(uid, r.account.nick);
+      return r && r.ok ? { status: 200, body: { account: r.account } } : { status: r && r.error === 'taken' ? 409 : 400, body: { error: (r && r.error) || 'invalid' } };
     }),
   };
 }
