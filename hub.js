@@ -40,21 +40,35 @@
       <div class="mk-meta">${extra || `<span>${l.sys ? '🏟️ ' : ''}${esc(l.seller)}</span>`}${h ? `<span title="최근 거래가">📈 ${h.p.toLocaleString('ko-KR')}</span>` : ''}</div></div>`;
   }
 
-  function viewBuy() {
+  function buyList() {
     const f = M.f;
     let list = M.data.list.filter((l) => !l.mine);
-    list = list.filter((l) => { const p = RF.byId[l.pid]; return (f.rar === 'all' || p.rarity === f.rar) && (f.pos === 'all' || p.pos === f.pos) && (!f.q || p.name.toLowerCase().includes(f.q.toLowerCase())); });
+    const q = f.q.trim().toLowerCase();
+    list = list.filter((l) => { const p = RF.byId[l.pid]; return (f.rar === 'all' || p.rarity === f.rar) && (f.pos === 'all' || p.pos === f.pos) && (!q || p.name.toLowerCase().includes(q)); });
     const ov = (l) => RF.byId[l.pid].ovr;
     list.sort({ new: (a, b) => b.ts - a.ts, low: (a, b) => a.price - b.price, high: (a, b) => b.price - a.price, ovr: (a, b) => ov(b) - ov(a) }[f.sort]);
+    return list;
+  }
+  // 목록(그리드)만 다시 그린다 — 검색 입력칸은 건드리지 않아야 한글 조합(IME)이 끊기지 않는다
+  function buyGrid() {
+    const el = $('mkGrid'); if (!el) return;
+    el.innerHTML = buyList().map((l) => listingCard(l)).join('') || '<p class="tiny center" style="grid-column:1/-1">조건에 맞는 매물이 없어요. 다른 사람이 선수를 올리면 여기에 나타나요!</p>';
+    el.querySelectorAll('.mk-item').forEach((it) => it.addEventListener('click', () => buyModal(+it.dataset.lid)));
+  }
+  function viewBuy() {
+    const f = M.f;
     $('mkBody').innerHTML = `
-      <input id="mkQ" class="inp" placeholder="🔍 선수 이름 검색" value="${esc(f.q)}" style="height:42px;margin-bottom:8px">
+      <input id="mkQ" class="inp" type="search" placeholder="🔍 선수 이름 검색" value="${esc(f.q)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" style="height:42px;margin-bottom:8px">
       ${chipRow('mkR', [['all', '전체 등급'], ...RAR.map((k) => [k, rn(k)])], f.rar)}
       ${chipRow('mkP', [['all', '전체 포지션'], ...POS.map((k) => [k, k])], f.pos)}
       ${chipRow('mkS', [['new', '최신순'], ['low', '낮은 가격'], ['high', '높은 가격'], ['ovr', '능력치순']], f.sort)}
-      <div class="grid mk-grid">${list.map((l) => listingCard(l)).join('') || '<p class="tiny center" style="grid-column:1/-1">조건에 맞는 매물이 없어요. 다른 사람이 선수를 올리면 여기에 나타나요!</p>'}</div>`;
-    $('mkQ').addEventListener('input', (e) => { f.q = e.target.value; const pos = e.target.selectionStart; viewBuy(); const q = $('mkQ'); q.focus(); q.setSelectionRange(pos, pos); });
-    for (const [id, key] of [['mkR', 'rar'], ['mkP', 'pos'], ['mkS', 'sort']]) $(id).addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) { f[key] = b.dataset.k; sfx('tap'); viewBuy(); } });
-    $('mkBody').querySelectorAll('.mk-item').forEach((el) => el.addEventListener('click', () => buyModal(+el.dataset.lid)));
+      <div id="mkGrid" class="grid mk-grid"></div>`;
+    buyGrid();
+    $('mkQ').addEventListener('input', (e) => { f.q = e.target.value; buyGrid(); });
+    for (const [id, key] of [['mkR', 'rar'], ['mkP', 'pos'], ['mkS', 'sort']]) $(id).addEventListener('click', (e) => {
+      const b = e.target.closest('[data-k]'); if (!b) return; f[key] = b.dataset.k; sfx('tap');
+      $(id).querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c === b)); buyGrid(); // 칩만 갱신 (입력칸 유지)
+    });
   }
 
   function statBars(pid) {
@@ -162,7 +176,7 @@
     s.on('chat:msg', chAdd);
     s.on('chat:online', (n) => { $('chOnline').lastChild.textContent = n + '명'; });
     s.on('chat:del', (id) => { CH.hist = CH.hist.filter((m) => m.id !== id); const e = $('chList').querySelector(`[data-id="${id}"]`); if (e) e.remove(); });
-    s.on('market:changed', () => { clearTimeout(M.t); M.t = setTimeout(async () => { if (RF.screen === 'market' && !M.busy) { await mkLoad(); if (!document.querySelector('#modal:not(.hidden)')) renderMarket(); } else M.data = null; }, 400); });
+    s.on('market:changed', () => { clearTimeout(M.t); M.t = setTimeout(async () => { if (RF.screen === 'market' && !M.busy) { await mkLoad(); if (!document.querySelector('#modal:not(.hidden)')) { if (M.tab === 'buy' && $('mkGrid')) { const n = M.data.list.length, mine = M.data.list.filter((l) => l.mine).length; $('mkSub').textContent = `매물 ${n}개 · 수수료 ${M.data.fee}% · 내 매물 ${mine}/${M.data.maxListings}`; buyGrid(); } else renderMarket(); } } else M.data = null; }, 400); });
   }
   setInterval(chHook, 700);
   RF.hubChat = () => { CH.unread = 0; badge(); chHook(); if (!CH.joined) chJoin(); else chRender(); setTimeout(() => { const el = $('chList'); el.scrollTop = el.scrollHeight; }, 30); };

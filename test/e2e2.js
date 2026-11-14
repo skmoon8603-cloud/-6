@@ -45,6 +45,9 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   await shot(B, 'buy');
   ok((await B.page.locator('#mkBody .mk-item.sys').count()) === 5, '구단 오늘의 특가 5개 표시');
   ok((await B.page.locator('#mkBody .mk-item:not(.sys)').count()) >= 1, 'B 화면에 A의 매물 표시');
+  await B.page.click('#mkQ'); await B.page.keyboard.insertText('한'); await B.page.keyboard.insertText('글'); await B.page.keyboard.insertText(' 검색');
+  ok((await B.page.inputValue('#mkQ')) === '한글 검색' && (await B.page.evaluate(() => document.activeElement && document.activeElement.id)) === 'mkQ', '이적시장 검색창: 한글 입력 유지(입력 중 다시 그려지지 않음)');
+  await B.page.fill('#mkQ', ''); await sleep(200);
   const balB = await B.page.evaluate(() => RF.state.bal), balA = await A.page.evaluate(() => RF.state.bal);
   await B.page.locator('#mkBody .mk-item:not(.sys)').first().click(); await sleep(250); await shot(B, 'buymodal');
   await B.page.click('#mkBuy'); await sleep(900);

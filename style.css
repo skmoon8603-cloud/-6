@@ -522,3 +522,5 @@ input{font:inherit;color:inherit}
   border:4px solid #fff;box-shadow:0 0 30px #5cf2ff,inset 0 0 30px #5cf2ff;opacity:0;animation:shockR 1.2s 1.1s ease-out both}
 .fx-trans .shock.s2{animation-delay:1.35s;border-color:#5cf2ff}
 @keyframes shockR{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(22)}}
+/* 입력칸은 항상 글자 입력/선택이 가능해야 한다 (body의 user-select:none 때문에 일부 폰에서 한글 입력이 깨짐) */
+input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}

@@ -150,6 +150,7 @@ class Match {
     for (const tm of this.teams) this.processQueue(tm);
     AI.prepare(this);
     for (const tm of this.teams) {
+      if (!tm.bot) this.autoSwitch(tm);
       if (tm.freeze > 0) tm.freeze -= dt;
       for (let s = 0; s < K.TEAM_SIZE; s++) {
         const p = this.players[tm.side * K.TEAM_SIZE + s];
@@ -359,7 +360,7 @@ class Match {
   }
 
   /** 공을 잡으면 그 선수를 자동으로 조종 (사람이 조작하는 팀) */
-  autoCtrl(p) { const tm = this.teams[p.side]; if (!tm.bot && tm.ctrl !== p.slot) tm.ctrl = p.slot; }
+  autoCtrl(p) { const tm = this.teams[p.side]; if (p.slot === 0) return; /* 골키퍼는 항상 AI */ if (!tm.bot && tm.ctrl !== p.slot) tm.ctrl = p.slot; }
 
   canReach(p) { return Math.hypot(this.ball.x - p.x, this.ball.y - p.y) <= PR + BR + 12; }
 
@@ -431,7 +432,7 @@ class Match {
     this.kick(p, ang, spd); this.stats.passes[p.side]++;
     const tm = this.teams[p.side];
     tm.receiver = best.i; tm.receiverUntil = this.tick + 100;
-    if (!tm.bot && tm.ctrl === p.slot) tm.ctrl = best.slot; // 수신자로 자동 전환
+    if (!tm.bot && tm.ctrl === p.slot && best.slot !== 0) tm.ctrl = best.slot; // 수신자로 자동 전환 (골키퍼 제외)
     return true;
   }
 
@@ -445,6 +446,19 @@ class Match {
     }
   }
 
+  /** 조종 선수가 공에서 멀어지면 공에서 가장 가까운(골키퍼 제외) 우리 선수로 자동 전환. 0.7초 쿨다운 + 충분히 더 가까울 때만 (깜빡임 방지) */
+  autoSwitch(tm) {
+    if (tm.ctrl === 0) { tm.ctrl = 4; } // 골키퍼는 사람이 조종하지 않는다
+    const b = this.ball, base = tm.side * K.TEAM_SIZE;
+    const cur = this.players[base + tm.ctrl];
+    if (b.owner === cur.i || this.tick < tm.receiverUntil || this.tick - (tm.lastAuto || -999) < 42) return;
+    const d0 = Math.hypot(cur.x - b.x, cur.y - b.y);
+    if (d0 < 320) return;
+    let best = null, bd = 1e9;
+    for (let s = 1; s < K.TEAM_SIZE; s++) { const q = this.players[base + s]; const d = Math.hypot(q.x - b.x, q.y - b.y); if (d < bd) { bd = d; best = s; } }
+    if (best != null && best !== tm.ctrl && bd < d0 - 140) { tm.ctrl = best; tm.lastAuto = this.tick; }
+  }
+
   switchPlayer(tm) {
     const b = this.ball;
     const dir = tm.side === 0 ? 1 : -1;
@@ -452,7 +466,7 @@ class Match {
     const cands = [];
     for (let s = 0; s < K.TEAM_SIZE; s++) {
       const p = this.players[tm.side * K.TEAM_SIZE + s];
-      if (s === 0 && Math.abs(b.x - ownGoalX) > 230) continue; // 골키퍼는 공이 가까울 때만
+      if (s === 0) continue; // 골키퍼(0번)는 사람이 조종하지 않는다
       cands.push({ s, d: Math.hypot(p.x - b.x, p.y - b.y) });
     }
     cands.sort((a, c) => a.d - c.d);

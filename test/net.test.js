@@ -240,6 +240,12 @@ const bal = async (u) => (await accounts.get(u.id)).bal;
     for (let i = 0; i < 60 * 4; i++) mm.update(K.TICK); // 카운트다운 지나 경기 시작
     mm.setInput(0, 1, 0, false); for (let i = 0; i < 30; i++) mm.update(K.TICK);
     const me = mm.players[mm.teams[0].ctrl]; assert(me.sprinting); ok('조이스틱 끝까지 밀면 자동 질주(내 선수가 CPU보다 느리지 않음)');
+    // 골키퍼는 사람이 조종하지 않는다 / 공에서 멀어지면 가까운 선수로 자동 전환
+    { const t0 = mm.teams[0]; for (let k = 0; k < 40; k++) { mm.teams[0].queue.push({ t: 'switch' }); mm.update(K.TICK); assert(mm.teams[0].ctrl !== 0); }
+      mm.ball.owner = -1; mm.ball.vx = mm.ball.vy = 0; mm.ball.x = 900; mm.ball.y = 550; t0.ctrl = 1; t0.lastAuto = -999; t0.receiverUntil = 0;
+      const gkP = mm.players[0], farP = mm.players[1]; farP.x = 200; farP.y = 100; const nearP = mm.players[3]; nearP.x = 880; nearP.y = 560;
+      mm.update(K.TICK); assert.strictEqual(t0.ctrl, 3); ok('골키퍼는 항상 AI, 공에서 멀면 가까운 선수로 자동 전환');
+      mm.ball.owner = 0; mm.autoCtrl(gkP); assert(t0.ctrl !== 0); mm.ball.owner = -1; }
     mm.setInput(0, 0.5, 0, false); for (let i = 0; i < 30; i++) mm.update(K.TICK); assert(!me.sprinting); ok('조금만 밀면 걷기(자동 질주 안 함)'); }
   let limited = false; for (let i = 0; i < 70; i++) if ((await call(A_.me, { token: uJ.token, ip: '2.2.2.2' })).status === 429) limited = true;
   assert(limited); ok('API 호출 속도 제한');
