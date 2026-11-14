@@ -136,6 +136,9 @@ const bal = async (u) => (await accounts.get(u.id)).bal;
   const rm2 = game.rooms.get(rc.code); run(60 * 4); rm2.match.score = [0, 2]; rm2.match.timeLeft = 0.01; run(5); await flush();
   assert.strictEqual(await bal(uD), 5000); assert.strictEqual(await bal(uC), 1000); ok('패자 −2,000 / 승자 +2,000 (D 5,000 / C 1,000)');
   assert.strictEqual(D1.got('match:end').pop().pay, 2000);
+  { const lastD = D1.got('match:end').pop(), lastC = C1.got('match:end').pop();
+    assert.deepStrictEqual(lastD.tier, { before: 0, after: 1, delta: 1 }); assert.deepStrictEqual(lastC.tier, { before: 0, after: 0, delta: 0 });
+    assert.strictEqual((await accounts.get(uD.id)).pts, 1); assert.strictEqual((await accounts.get(uC.id)).pts, 0); assert.strictEqual((await accounts.get(uD.id)).tier.name, '브론즈'); ok('친구 대결: 승자 +1점, 패자 -1점(0점 아래로는 안 내려감)'); }
 
   // 8. 시작 순간 잔액 부족 → 시작 불가, 아무것도 잠기지 않음
   const uE = await mkUser('Eli', 2000), uF = await mkUser('Fay', 2000);

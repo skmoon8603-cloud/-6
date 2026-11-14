@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/sim.js 6 180 && node test/net.test.js && node test/bounce.test.js && node test/attend.test.js && node test/admin.test.js && node test/market.test.js && node test/presence.test.js"
+    "test": "node test/sim.js 6 180 && node test/net.test.js && node test/bounce.test.js && node test/attend.test.js && node test/admin.test.js && node test/market.test.js && node test/presence.test.js && node test/tier.test.js"
   },
   "engines": {
     "node": ">=18"
