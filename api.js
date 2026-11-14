@@ -21,7 +21,7 @@ function catalogPayload() {
   };
 }
 
-function create({ accounts, auth }) {
+function create({ accounts, auth, market, onMarket }) {
   const rand01 = () => require('crypto').randomInt(0, 1e9) / 1e9;
   const bearer = (req) => { const h = req.headers.authorization || ''; return h.startsWith('Bearer ') ? h.slice(7) : ''; };
   const who = (req) => { const s = auth.verifySession(bearer(req)); return s ? s.uid : null; };
@@ -109,6 +109,18 @@ function create({ accounts, auth }) {
       if (out.error === 'already') return { status: 409, body: out };
       if (out.error) return { status: 401, body: out };
       return { status: 200, body: out };
+    }),
+    marketView: authed(async (_req, uid) => ({ status: 200, body: await market.view(uid) })),
+    marketAct: authed(async (req, uid) => {
+      const b = req.body || {}; let out;
+      if (limited('m:' + uid, 20, 10000)) return { status: 429, body: { error: 'too_many_requests' } };
+      if (b.op === 'list') out = await market.list(uid, String(b.pid || ''), b.price);
+      else if (b.op === 'cancel') out = await market.cancel(uid, Number(b.id));
+      else if (b.op === 'buy') out = await market.buy(uid, Number(b.id));
+      else if (b.op === 'quick') out = await market.quick(uid, String(b.pid || ''));
+      else return { status: 400, body: { error: 'bad_op' } };
+      if (out.ok && onMarket) onMarket(b.op, uid, out);
+      return { status: out.error ? (out.error === 'not_enough' ? 402 : 400) : 200, body: out };
     }),
     nick: authed(async (req, uid) => {
       const a = await accounts.setNick(uid, req.body && req.body.nick);

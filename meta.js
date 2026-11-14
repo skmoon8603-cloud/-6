@@ -30,7 +30,7 @@
   S.locked = 0;
   const won = (n) => Number(n).toLocaleString('ko-KR') + '원';
   RF.won = won;
-  function updateBal() { const el = $('bal'); if (el) el.textContent = '💰 ' + won(S.bal || 0); }
+  function updateBal() { const el = $('bal'); if (el) el.textContent = '💰 ' + won(S.bal || 0); const m = $('mkBal'); if (m) m.textContent = won(S.bal || 0); }
   const COST = () => (RF.cat && RF.cat.pullCost) || 1000;
   /** 서버 API 호출 (로그인 세션 포함). 401 이면 다시 로그인 */
   RF.api = async (path, body) => {
@@ -79,6 +79,7 @@
   RF.sfx = (k, a) => {
     switch (k) {
       case 'tap': tone(660, 0.06, 'triangle', 0.08); break;
+      case 'coin': tone(988, 0.08, 'square', 0.07); tone(1319, 0.28, 'square', 0.07, 0.08); break;
       case 'kick': noise(0.08, Math.min(0.35, 0.12 + (a || 500) / 4000), 700); tone(120, 0.08, 'sine', 0.2, 0, 60); break;
       case 'post': tone(1500, 0.25, 'triangle', 0.15); break;
       case 'save': noise(0.1, 0.2, 400); break;
@@ -257,14 +258,14 @@
   };
 
   // ───────────── 화면 전환 ─────────────
-  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'rank', 'room'];
+  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'rank', 'market', 'chat', 'room'];
   RF.go = (name) => {
     if (!RF.cat && name !== 'home') { RF.toast('서버 데이터를 불러오는 중입니다', true); return; }
     if (name === 'home' && RF.hooks.inRoom && RF.hooks.inRoom()) name = 'room';
     SCREENS.forEach((s) => $('scr-' + s).classList.toggle('active', s === name));
-    document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
+    document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === name || (name === 'dex' && b.dataset.go === 'box')));
     RF.screen = name;
-    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, rank: renderRank, room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
+    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, rank: renderRank, market: () => RF.hubMarket && RF.hubMarket(), chat: () => RF.hubChat && RF.hubChat(), room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
     const sc = $('scr-' + name); if (sc) sc.scrollTop = 0;
   };
   document.querySelectorAll('#nav button').forEach((b) => b.addEventListener('click', () => { RF.sfx('tap'); RF.go(b.dataset.go); }));
@@ -376,7 +377,7 @@
 
   function renderHome() {
     renderAttend(); loadPlayers().then(renderTopLine);
-    $('nameInput').value = S.name; $('acctMail').textContent = S.email || '';
+    $('nameInput').value = S.name; $('profAv').textContent = (S.name || 'P').slice(0, 1).toUpperCase(); $('profOvr').textContent = teamAvg(); $('profSub').textContent = won(S.bal) + ' · 획득 선수 ' + Object.keys(S.inv).length + '명'; $('acctMail').textContent = S.email || '';
     $('homeTeam').innerHTML = S.lineup.map((id, i) => {
       const p = RF.byId[id], c = rarOf(p.rarity).color;
       return `<div class="mini" style="--rc:${c}"><b>${effOvr(id, RF.cat.slots[i])}</b>${RF.cat.slots[i]}</div>`;
@@ -386,6 +387,8 @@
     $('homeStats').innerHTML = `<div><b>${won(S.bal)}</b>내 잔액</div><div><b>${have}/${total}</b>도감</div><div><b>${teamAvg()}</b>팀 평균</div>`;
   }
   $('btnLogout').addEventListener('click', () => RF.logout(false));
+  $('btnDex').addEventListener('click', () => RF.go('dex'));
+  $('btnDexBack').addEventListener('click', () => RF.go('box'));
   $('nameInput').readOnly = true; // 닉네임은 아이디로 고정
 
   // ───────────── 뽑기 ─────────────

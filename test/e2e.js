@@ -43,7 +43,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   await A.page.click('#nav [data-go=box]'); await sleep(300); await shot(A, '06-box');
   const boxN = await A.page.locator('#boxGrid .pcard').count(); ok(boxN >= 7, `보관함 카드 ${boxN}장 (기본 6 + 획득)`);
   await A.page.click('#boxGrid .pcard'); await sleep(250); await shot(A, '07-detail'); await A.page.click('#modalX');
-  await A.page.click('#nav [data-go=dex]'); await sleep(300); await shot(A, '08-dex');
+  await A.page.click('#btnDex'); await sleep(300); await shot(A, '08-dex');
   await A.page.click('#nav [data-go=team]'); await sleep(300); await shot(A, '09-team');
   // 새로고침 후 유지
   const before = await A.page.evaluate(() => JSON.stringify({ inv: RF.state.inv, name: RF.state.name }));

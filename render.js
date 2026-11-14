@@ -2,7 +2,7 @@
 /* RANDOM FOOTBALL - render.js : Canvas 경기장/선수/공/이펙트 렌더러 */
 (function () {
   const RF = window.RF;
-  const W = 1050, H = 680, M = 78, GOAL_W = 190, GOAL_D = 56, PR = 15, BR = 8;
+  const W = 1400, H = 860, M = 78, GOAL_W = 230, GOAL_D = 64, PR = 15, BR = 8;
   const TEAM_COL = ['#35e0ff', '#ff5b5b'];
   const R = (RF.Render = {});
   let cv, ctx, radar, rctx, dpr = 1, cw = 0, ch = 0, sc = 1;
@@ -60,10 +60,10 @@
     g.fillStyle = '#fff'; g.beginPath(); g.arc(W / 2, H / 2, 4, 0, 6.2832); g.fill();
     for (const left of [true, false]) {
       const x0 = left ? 0 : W, dir = left ? 1 : -1;
-      g.strokeRect(left ? 0 : W - 175, H / 2 - 190, 175, 380);
-      g.strokeRect(left ? 0 : W - 62, H / 2 - 100, 62, 200);
-      g.beginPath(); g.arc(x0 + dir * 125, H / 2, 4, 0, 6.2832); g.fill();
-      g.beginPath(); g.arc(x0 + dir * 125, H / 2, 82, left ? -0.93 : Math.PI - 0.93 + 0, left ? 0.93 : Math.PI + 0.93); g.stroke();
+      g.strokeRect(left ? 0 : W - 230, H / 2 - 240, 230, 480);
+      g.strokeRect(left ? 0 : W - 80, H / 2 - 125, 80, 250);
+      g.beginPath(); g.arc(x0 + dir * 165, H / 2, 4, 0, 6.2832); g.fill();
+      g.beginPath(); g.arc(x0 + dir * 165, H / 2, 82, left ? -0.93 : Math.PI - 0.93 + 0, left ? 0.93 : Math.PI + 0.93); g.stroke();
       // 골대 그물
       g.save();
       g.fillStyle = 'rgba(255,255,255,.14)';

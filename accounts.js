@@ -138,7 +138,7 @@ class Accounts {
   /** 모든 계정 목록 (돈 많은 순). 아이디(id)는 관리자에게만 알려준다. */
   async players(viewerId) {
     const admin = isAdmin(viewerId);
-    const list = (await this.store.listAll()).map((a) => ({
+    const list = (await this.store.listAll()).filter((a) => !String(a.id).startsWith('__')).map((a) => ({
       nick: nickOf(a), bal: a.bal || 0, owned: Object.keys(a.inv || {}).filter((k) => a.inv[k] > 0).length,
       ...(admin ? { id: a.id, locked: !!a.locked } : {}), ...(a.id === viewerId ? { me: true } : {}),
     }));
@@ -149,6 +149,7 @@ class Accounts {
   /** [관리자] 계정의 돈을 설정(set)하거나 더하고/빼기(add) */
   async adminMoney(adminId, targetId, mode, amount) {
     if (!isAdmin(adminId)) return { error: 'forbidden' };
+    if (String(targetId).startsWith('__')) return { error: 'no_account' };
     amount = Math.trunc(Number(amount));
     if (!Number.isFinite(amount) || Math.abs(amount) > MAX_BAL || (mode !== 'set' && mode !== 'add')) return { error: 'bad_amount' };
     return this.store.txn([targetId], (m) => {
@@ -164,6 +165,7 @@ class Accounts {
   async adminDelete(adminId, targetId) {
     if (!isAdmin(adminId)) return { error: 'forbidden' };
     if (targetId === adminId) return { error: 'self' };
+    if (String(targetId).startsWith('__')) return { error: 'no_account' };
     const a = await this.store.get(targetId);
     if (!a) return { error: 'no_account' };
     if (a.locked) return { error: 'locked' };

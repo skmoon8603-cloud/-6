@@ -17,7 +17,10 @@ const bounceNet = require(modPath('bouncenet'));
 const VERSION = require(modPath('version')).compute(path.join(__dirname, 'public'), __dirname);
 const auth = require(modPath('auth'));
 const { createStore } = require(modPath('store'));
-const { Accounts } = require(modPath('accounts'));
+const { Accounts, isAdmin } = require(modPath('accounts'));
+const { Market } = require(modPath('market'));
+const chatNet = require(modPath('chat'));
+const C = require(modPath('catalog'));
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -32,7 +35,20 @@ app.use((req, res, next) => {
 
 const store = createStore();
 const accounts = new Accounts(store);
-const A = api.create({ accounts, auth });
+const market = new Market(store);
+let chat = { sys() {} };
+let ioRef = null;
+const pushAcct = (uid, acct) => { if (!ioRef || !acct) return; for (const [, s] of ioRef.of('/').sockets) if (s.data && s.data.uid === uid) s.emit('account', acct); };
+const onMarket = (op, uid, out) => {
+  pushAcct(uid, out.acct);
+  if (op === 'buy') {
+    pushAcct(out.seller, out.sellerAcct);
+    const p = C.BY_ID[out.pid];
+    if (p && ['hero', 'legend', 'myth'].includes(p.rarity)) chat.sys(`💸 이적 완료! ${out.buyerNick} 님이 ${out.sellerNick} 님의 ${p.name} 선수를 ${Number(out.price).toLocaleString('ko-KR')}원에 영입했어요`);
+  }
+  if (ioRef) ioRef.emit('market:changed');
+};
+const A = api.create({ accounts, auth, market, onMarket });
 let game = { stats: () => ({}), stop() {} };
 let bounce = { stop() {} };
 app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.stats(), uptime: Math.round(process.uptime()) }));
@@ -48,6 +64,8 @@ app.post('/api/pull', A.pull);
 app.post('/api/nick', A.nick);
 app.post('/api/attend', A.attend);
 app.get('/api/players', A.players);
+app.get('/api/market', A.marketView);
+app.post('/api/market', A.marketAct);
 app.post('/api/admin/money', A.adminMoney);
 app.post('/api/admin/delete', A.adminDelete);
 app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION, goals: [1, 2, 3].filter((i) => ['goal' + i + '.mp3', 'public/goal' + i + '.mp3'].some((f) => fs.existsSync(path.join(__dirname, f)))) }); });
@@ -57,7 +75,7 @@ if (fs.existsSync(path.join(PUB, 'index.html'))) {
   app.use(express.static(PUB, { maxAge: 0, etag: true, extensions: ['html'], setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));
 } else {
   // 평평한 구조: 클라이언트 파일만 공개 (server.js 등은 노출하지 않음)
-  const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js'];
+  const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js', 'hub.js'];
   app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
   for (const i of [1, 2, 3]) if (fs.existsSync(path.join(__dirname, `goal${i}.mp3`))) app.get(`/goal${i}.mp3`, (_req, res) => res.sendFile(path.join(__dirname, `goal${i}.mp3`))); // 골 리플레이 음악 3곡
@@ -78,7 +96,9 @@ const io = new Server(server, {
     const g = await accounts.grantAllByNick('skmoon');
     console.log('[지급] skmoon:', g.ok ? (g.already ? '이미 지급됨' : '모든 캐릭터 지급 완료') : `실패 (일치하는 계정 ${g.found}개)`);
   } catch (e) { console.error('[지급] 오류', e.message); }
+  ioRef = io;
   game = net.attach(io, { accounts, auth });
+  chat = chatNet.attach(io, { accounts, isAdmin });
   bounce = bounceNet.attach(io, { accounts });
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
 })().catch((e) => { console.error('시작 실패', e); process.exit(1); });

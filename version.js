@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const FILES = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js'];
+const FILES = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js', 'hub.js'];
 function compute(...dirs) {
   const h = crypto.createHash('sha1');
   h.update(String(process.env.RENDER_GIT_COMMIT || ''));

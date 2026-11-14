@@ -1,0 +1,82 @@
+// Playwright E2E: 이적시장 + 채팅 + 넓은 경기장 (devserver 필요)
+const { chromium, devices } = require('playwright');
+const OUT = process.env.SHOTS || '/tmp/shots2';
+require('fs').mkdirSync(OUT, { recursive: true });
+const URL = 'http://localhost:3100/';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let fails = 0;
+const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
+(async () => {
+  const browser = await chromium.launch();
+  const mk = async (name, vp = { width: 412, height: 800 }) => {
+    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, hasTouch: true, isMobile: true, userAgent: devices['Pixel 7'].userAgent });
+    const page = await ctx.newPage(); const errs = [];
+    page.on('pageerror', (e) => errs.push('pageerror: ' + e.message)); page.on('console', (m) => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
+    page.on('dialog', (d) => d.accept());
+    await page.goto(URL); await page.waitForSelector('#devLogin:not(.hidden)', { timeout: 15000 });
+    await page.fill('#devName', name + Date.now() % 100000); await page.click('#devLogin button');
+    await page.waitForFunction(() => window.RF && RF.ready, null, { timeout: 15000 });
+    return { ctx, page, errs, name };
+  };
+  const grant = async (p, amt) => { const uid = await p.page.evaluate(() => RF.state.uid); await fetch(`http://localhost:3100/__test/grant?uid=${encodeURIComponent(uid)}&amt=${amt}`); return uid; };
+  const A = await mk('A'), B = await mk('B');
+  await grant(A, 30000); await grant(B, 30000);
+  await A.page.reload(); await A.page.waitForFunction(() => window.RF && RF.ready); await B.page.reload(); await B.page.waitForFunction(() => window.RF && RF.ready);
+  const shot = (p, n) => p.page.screenshot({ path: `${OUT}/${p.name}-${n}.png` });
+  await shot(A, 'home');
+
+  console.log('[1] A: 뽑기 10연속 후 이적시장에 올리기');
+  await A.page.click('#nav [data-go=gacha]'); await A.page.click('#pull10');
+  await A.page.waitForSelector('#revealSkip'); await A.page.click('#revealSkip'); await A.page.waitForSelector('#revealClose:not(.hidden)', { timeout: 20000 }); await A.page.click('#revealClose');
+  await A.page.click('#nav [data-go=market]'); await sleep(500);
+  await A.page.click('#mkTabs [data-t=sell]'); await sleep(300); await shot(A, 'sell');
+  const nSell = await A.page.locator('#mkBody .mk-item').count(); ok(nSell > 0, `판매 가능 선수 ${nSell}명`);
+  const SEL = '#mkBody .mk-item:has(.pcard.r-common), #mkBody .mk-item:has(.pcard.r-rare)';
+  const pid = await A.page.locator(SEL).first().getAttribute('data-pid');
+  const before = await A.page.evaluate((id) => RF.state.inv[id], pid);
+  await A.page.locator(SEL).first().click(); await sleep(250); await shot(A, 'sellmodal');
+  await A.page.fill('#slPrice', '1500'); await A.page.click('#slList'); await sleep(700);
+  ok(await A.page.evaluate(([id, b]) => (RF.state.inv[id] || 0) === b - 1, [pid, before]), '등록하면 보관함에서 1장 빠짐');
+  await shot(A, 'mine');
+  ok((await A.page.locator('#mkBody .mk-item').count()) === 1, '내 매물 탭에 1개');
+
+  console.log('[2] B: 시장에서 구매 (실시간 갱신)');
+  await B.page.click('#nav [data-go=market]'); await sleep(700);
+  await shot(B, 'buy');
+  ok((await B.page.locator('#mkBody .mk-item').count()) >= 1, 'B 화면에 A의 매물 표시');
+  const balB = await B.page.evaluate(() => RF.state.bal), balA = await A.page.evaluate(() => RF.state.bal);
+  await B.page.locator('#mkBody .mk-item').first().click(); await sleep(250); await shot(B, 'buymodal');
+  await B.page.click('#mkBuy'); await sleep(900);
+  ok((await B.page.evaluate(() => RF.state.bal)) === balB - 1500, 'B 잔액 1,500원 차감');
+  ok((await B.page.evaluate((id) => RF.state.inv[id] || 0, pid)) >= 1, 'B 보관함에 선수 추가');
+  await sleep(600);
+  ok((await A.page.evaluate(() => RF.state.bal)) === balA + 1425, 'A에게 수수료 5% 뺀 1,425원 입금(실시간 반영)');
+  ok((await B.page.locator('#mkBody .mk-item').count()) === 0, '팔린 매물은 목록에서 사라짐');
+
+  console.log('[3] 채팅');
+  await A.page.click('#nav [data-go=chat]'); await B.page.click('#nav [data-go=chat]'); await sleep(600);
+  await A.page.fill('#chInp', '안녕! <b>테스트</b>'); await A.page.click('#chSend'); await sleep(600);
+  ok((await B.page.textContent('#chList')).includes('안녕! <b>테스트</b>'), 'B가 A의 메시지를 실시간 수신 (HTML은 그대로 문자 표시)');
+  ok((await B.page.locator('#chList b').count()) === 0, 'HTML 주입 차단');
+  await B.page.fill('#chInp', '반가워요'); await B.page.click('#chSend'); await sleep(600);
+  ok((await A.page.textContent('#chList')).includes('반가워요'), 'A가 B의 답장 수신');
+  await A.page.fill('#chInp', '또'); await A.page.click('#chSend'); await sleep(200);
+  await A.page.fill('#chInp', '연타'); await A.page.click('#chSend'); await sleep(300);
+  ok(/너무 빨라요/.test(await A.page.textContent('#toast')), '도배 제한 안내');
+  ok(/명/.test(await A.page.textContent('#chOnline')) && (await A.page.textContent('#chOnline')).includes('2'), '접속자 2명 표시');
+  await shot(A, 'chat');
+  await B.page.click('#nav [data-go=home]'); await A.page.fill('#chInp', '안읽음 테스트'); await sleep(1300); await A.page.click('#chSend'); await sleep(600);
+  ok(!(await B.page.locator('#chBadge').evaluate((e) => e.classList.contains('hidden'))), '다른 화면에 있을 때 안 읽은 메시지 배지');
+  await shot(B, 'home2');
+
+  console.log('[4] 넓어진 경기장');
+  const C = await mk('C', { width: 844, height: 390 }); await grant(C, 0);
+  await C.page.click('#btnPractice'); await C.page.waitForSelector('#scr-match:not(.hidden)', { timeout: 10000 });
+  await sleep(6500); await shot(C, 'match');
+  ok(await C.page.evaluate(() => !!document.getElementById('cv')), '경기 화면 표시');
+  const fieldInfo = await C.page.evaluate(() => RF.Render && 1); ok(!!fieldInfo, '렌더러 동작');
+  A.errs.push(...C.errs);
+  for (const p of [A, B]) ok(p.errs.length === 0, `${p.name} 콘솔/페이지 오류 없음 ${p.errs.join(' | ')}`);
+  await browser.close();
+  console.log(fails ? `\n실패 ${fails}개` : '\nE2E2 모두 통과'); process.exit(fails ? 1 : 0);
+})();

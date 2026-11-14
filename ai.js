@@ -9,7 +9,7 @@ const { W, H, GOAL_W } = K;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-const HOME = [[70, H / 2], [235, H / 2 - 125], [235, H / 2 + 125], [350, H / 2], [440, H / 2 - 175], [440, H / 2 + 175]];
+const HOME = [[90, H / 2], [310, H / 2 - 160], [310, H / 2 + 160], [470, H / 2], [590, H / 2 - 225], [590, H / 2 + 225]];
 function home(p) {
   const h = HOME[p.slot];
   return p.side === 0 ? { x: h[0], y: h[1] } : { x: W - h[0], y: H - h[1] };
@@ -83,13 +83,13 @@ function decide(m, p) {
   const has = A.has[side];
   let tx, ty;
   if (p.pos === 'DF') {
-    tx = ownX + dir * clamp(depth * 0.5, 150, 430);
+    tx = ownX + dir * clamp(depth * 0.5, 200, 570);
     ty = hm.y + (b.y - hm.y) * 0.45;
   } else if (p.pos === 'MF') {
-    tx = ownX + dir * clamp(depth * 0.72 + (has ? 70 : 0), 230, 720);
+    tx = ownX + dir * clamp(depth * 0.72 + (has ? 90 : 0), 300, 960);
     ty = H / 2 + (b.y - H / 2) * 0.55;
   } else {
-    tx = has ? ownX + dir * clamp(depth + 150, 420, 900) : ownX + dir * clamp(depth * 0.9, 380, 620);
+    tx = has ? ownX + dir * clamp(depth + 200, 560, 1200) : ownX + dir * clamp(depth * 0.9, 500, 830);
     ty = hm.y + (b.y - hm.y) * 0.25;
   }
   // 위치 선정 실수
@@ -112,14 +112,14 @@ function carry(m, p, dt) {
     p.aiNoise = (1 - sk) * 0.5;                      // 슛/패스 조준 오차
     const a2g = Math.atan2(aimY - p.y, gx - p.x);
     let acted = false;
-    if (dGoal < 340 && Math.abs(p.y - H / 2) < 250 && m.rng() < 0.3 + 0.55 * sk) {
+    if (dGoal < 450 && Math.abs(p.y - H / 2) < 320 && m.rng() < 0.3 + 0.55 * sk) {
       p.ang = a2g; m.doShoot(p, 0.6 + m.rng() * 0.3); acted = true;
-    } else if (dGoal < 480 && od > 90 && m.rng() < 0.18 * sk) {
+    } else if (dGoal < 640 && od > 90 && m.rng() < 0.18 * sk) {
       p.ang = a2g; m.doShoot(p, 0.85); acted = true;
     } else {
       const own = Math.abs(p.x - (p.side === 0 ? 0 : W));
       if (od < 85 && m.rng() < 0.25 + sk * 0.35) acted = m.doPass(p, true);
-      else if (own < 300 && od < 130 && m.rng() < 0.3 + 0.3 * sk) acted = m.doPass(p, true);
+      else if (own < 400 && od < 130 && m.rng() < 0.3 + 0.3 * sk) acted = m.doPass(p, true);
       else if (m.rng() < 0.04) acted = m.doPass(p, true);
     }
     p.aiNoise = 0;

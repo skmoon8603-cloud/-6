@@ -24,27 +24,35 @@
     <!-- 홈 / 로비 -->
     <section id="scr-home" class="screen active">
       <div class="hero">
+        <div class="hero-lights"></div>
         <div class="hero-ball"></div>
         <div class="hero-title">RANDOM<span>FOOTBALL</span></div>
-        <p class="hero-sub">뽑고 · 편성하고 · 친구와 실시간 대결</p>
+        <p class="hero-sub">뽑고 · 사고팔고 · 편성하고 · 친구와 실시간 대결</p>
       </div>
-      <div class="panel">
-        <label class="lbl" for="nameInput">닉네임 (아이디로 고정)</label>
-        <input id="nameInput" class="inp" maxlength="20" readonly autocomplete="off">
-        <div class="lbl" style="margin-top:14px">내 출전 선수</div>
-        <div id="homeTeam" class="team-mini"></div>
-        <button id="btnCreate" class="btn primary big">⚽ 방 만들기</button>
-        <div class="row">
-          <input id="codeInput" class="inp code-inp" maxlength="8" placeholder="방 코드 입력" autocomplete="off" autocapitalize="characters" spellcheck="false">
-          <button id="btnJoin" class="btn">입장</button>
+      <div class="prof">
+        <div class="prof-av" id="profAv">P</div>
+        <div class="prof-mid">
+          <label class="lbl" for="nameInput">내 클럽</label>
+          <input id="nameInput" class="prof-name" maxlength="20" readonly autocomplete="off">
+          <div id="profSub" class="prof-sub"></div>
         </div>
-        <button id="btnPractice" class="btn ghost">🤖 CPU 연습 경기 (승리 시 +3,000원)</button>
-        <button id="btnBounce" class="btn ghost" style="margin-top:8px">🏓 원 바운스 (AI · 친구 방 만들기 · 내기)</button>
+        <div class="prof-ovr"><b id="profOvr">0</b><small>TEAM OVR</small></div>
+      </div>
+      <div class="lbl sect">내 출전 선수</div>
+      <div id="homeTeam" class="team-mini"></div>
+      <div class="tiles">
+        <button id="btnCreate" class="tile t-match"><i>⚽</i><b>친구와 대결</b><small>방을 만들고 코드를 공유</small></button>
+        <button id="btnPractice" class="tile t-cpu"><i>🤖</i><b>CPU 연습</b><small>이기면 +3,000원</small></button>
+        <button id="btnBounce" class="tile t-bounce"><i>🏓</i><b>원 바운스</b><small>AI · 친구 · 내기</small></button>
+      </div>
+      <div class="join">
+        <input id="codeInput" class="inp code-inp" maxlength="8" placeholder="방 코드 입력" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button id="btnJoin" class="btn primary">입장</button>
       </div>
       <div id="topLine" class="strip" style="margin-bottom:8px;display:none"></div>
       <div id="attend" class="panel"></div>
       <div id="homeStats" class="strip"></div>
-      <div class="center tiny" style="margin-top:8px"><span id="acctMail"></span> <button id="btnLogout" class="btn ghost" style="padding:4px 10px;font-size:12px">로그아웃</button></div>
+      <div class="center tiny" style="margin-top:8px"><span id="acctMail"></span> <button id="btnLogout" class="btn ghost" style="padding:4px 10px;font-size:12px;height:auto">로그아웃</button></div>
       <p class="tiny center">PC: WASD/방향키 이동 · Space 슛(누르고 있으면 강하게) · E 패스 · Shift 질주 · Q 선수 변경</p>
     </section>
 
@@ -90,14 +98,14 @@
 
     <!-- 보관함 -->
     <section id="scr-box" class="screen">
-      <div class="sec-title">선수 보관함 <small id="boxCount"></small></div>
+      <div class="sec-title">선수 보관함 <small id="boxCount"></small><button id="btnDex" class="mini-btn">📖 도감</button></div>
       <div id="boxFilter" class="chips"></div>
       <div id="boxGrid" class="grid"></div>
     </section>
 
     <!-- 도감 -->
     <section id="scr-dex" class="screen">
-      <div class="sec-title">선수 도감 <small id="dexCount"></small></div>
+      <div class="sec-title">선수 도감 <small id="dexCount"></small><button id="btnDexBack" class="mini-btn">← 보관함</button></div>
       <div id="dexSummary" class="dex-sum"></div>
       <div id="dexGrid" class="grid"></div>
     </section>
@@ -108,6 +116,26 @@
       <div id="rankTop"></div>
       <div id="rankList" class="rank-list"></div>
       <p class="tiny center">전체 플레이어 목록이에요. 돈이 가장 많은 사람이 1위!</p>
+    </section>
+
+    <!-- 이적시장 -->
+    <section id="scr-market" class="screen">
+      <div class="mk-head">
+        <div><div class="sec-title" style="margin:0">💸 이적시장</div><div id="mkSub" class="tiny" style="margin:2px 0 0"></div></div>
+        <div class="mk-bal"><small>보유 코인</small><b id="mkBal">0원</b></div>
+      </div>
+      <div class="seg" id="mkTabs"><button data-t="buy" class="on">🛒 영입</button><button data-t="sell">💼 판매</button><button data-t="mine">📌 내 매물</button></div>
+      <div id="mkBody"></div>
+    </section>
+
+    <!-- 채팅 -->
+    <section id="scr-chat" class="screen">
+      <div class="ch-head"><div class="sec-title" style="margin:0">💬 전체 채팅</div><div id="chOnline" class="ch-on"><i></i><span>0명</span></div></div>
+      <div id="chList" class="ch-list"></div>
+      <form id="chForm" class="ch-form" autocomplete="off">
+        <input id="chInp" class="inp" maxlength="200" placeholder="메시지를 입력하세요" enterkeyhint="send">
+        <button class="btn primary" id="chSend" type="submit">전송</button>
+      </form>
     </section>
 
     <!-- 편성 -->
@@ -122,9 +150,10 @@
   <nav id="nav">
     <button data-go="home" class="on"><i>🏠</i><span>로비</span></button>
     <button data-go="gacha"><i>🎁</i><span>뽑기</span></button>
+    <button data-go="market"><i>💸</i><span>이적시장</span></button>
     <button data-go="box"><i>🎒</i><span>보관함</span></button>
-    <button data-go="dex"><i>📖</i><span>도감</span></button>
     <button data-go="team"><i>📋</i><span>편성</span></button>
+    <button data-go="chat"><i>💬</i><span>채팅</span><em id="chBadge" class="badge hidden">0</em></button>
     <button data-go="rank"><i>🏆</i><span>랭킹</span></button>
   </nav>
 
@@ -218,5 +247,6 @@
 <script src="render.js"></script>
 <script src="game.js"></script>
 <script src="bounce.js"></script>
+<script src="hub.js"></script>
 </body>
 </html>

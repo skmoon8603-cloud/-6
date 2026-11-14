@@ -14,16 +14,23 @@ const auth = require('../lib/auth');
 const { MemoryStore } = require('../lib/store');
 const { Accounts } = require('../lib/accounts');
 const store = new MemoryStore(); const accounts = new Accounts(store);
-const A = api.create({ accounts, auth });
+const live = new Map(); // sid -> sock (채팅 방/브로드캐스트용)
+const { Market } = require('../lib/market');
+const market = new Market(store);
+let ioRef = null;
+const A = api.create({ accounts, auth, market, onMarket: (op, uid, out) => { const push = (u, a) => { if (a) for (const [, sk] of live) if (sk.data && sk.data.uid === u) sk.emit('account', a); }; push(uid, out.acct); if (op === 'buy') push(out.seller, out.sellerAcct); if (ioRef) ioRef.emit('market:changed'); } });
 const mw = [];
 
 const PUB = path.join(__dirname, '..', 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 const handlersOnConn = [];
-const io = { use: (fn) => mw.push(fn), on: (ev, fn) => { if (ev === 'connection') handlersOnConn.push(fn); } };
+const io = { use: (fn) => mw.push(fn), on: (ev, fn) => { if (ev === 'connection') handlersOnConn.push(fn); },
+  of: () => ({ sockets: live }), to: (room) => ({ emit: (e, d) => { for (const [, s] of live) if (s.rooms && s.rooms.has(room)) s.emit(e, d); } }), emit: (e, d) => { for (const [, s] of live) s.emit(e, d); } };
+ioRef = io;
 const game = net.attach(io, { accounts, auth });
 const bounceGame = require('../lib/bouncenet').attach(io, { accounts });
 const socks = new Map();
+const chatGame = require('../lib/chat').attach(io, { accounts, isAdmin: require('../lib/accounts').isAdmin });
 
 const SHIM = `(function(){
   window.io=function(opts){
@@ -57,7 +64,7 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/__test/ver') { global.__VER = url.searchParams.get('v'); res.writeHead(200); return res.end('ok'); }
   if (url.pathname === '/api/version') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ v: global.__VER || 'dev', goals: [1, 2, 3].filter((i) => fs.existsSync(path.join(PUB, 'goal' + i + '.mp3'))) })); }
   if (url.pathname === '/api/catalog') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(api.catalogPayload())); }
-  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend, '/api/players': A.players, '/api/admin/money': A.adminMoney, '/api/admin/delete': A.adminDelete };
+  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend, '/api/players': A.players, '/api/admin/money': A.adminMoney, '/api/admin/delete': A.adminDelete, '/api/market': (rq, rs) => (rq.body === undefined ? A.marketView(rq, rs) : A.marketAct(rq, rs)) };
   if (routes[url.pathname]) {
     const b = req.method === 'POST' ? await body(req) : undefined;
     const rq = { headers: req.headers, body: b, ip: req.socket.remoteAddress };
@@ -73,11 +80,11 @@ http.createServer(async (req, res) => {
     res.write(': ok\n\n');
     const h = {};
     const push = (ev, d) => { try { res.write('data: ' + JSON.stringify({ ev, d }) + '\n\n'); } catch (e) { /* closed */ } };
-    const sock = { id: sid, data: {}, handshake: { auth: { token: url.searchParams.get('token') } }, on: (ev, fn) => { const prev = h[ev]; h[ev] = prev ? (...a) => { prev(...a); return fn(...a); } : fn; }, emit: push, leave() {}, disconnect() { res.end(); }, volatile: { emit: push } };
-    socks.set(sid, { h, sock });
+    const sock = { id: sid, data: {}, handshake: { auth: { token: url.searchParams.get('token') } }, on: (ev, fn) => { const prev = h[ev]; h[ev] = prev ? (...a) => { prev(...a); return fn(...a); } : fn; }, emit: push, rooms: new Set(), join(r) { sock.rooms.add(r); }, leave(r) { sock.rooms.delete(r); }, disconnect() { res.end(); }, volatile: { emit: push } };
+    socks.set(sid, { h, sock }); live.set(sid, sock);
     try { for (const fn of mw) await new Promise((ok, no) => fn(sock, (e) => (e ? no(e) : ok()))); } catch (e) { return res.end(); }
     handlersOnConn.forEach((fn) => fn(sock));
-    req.on('close', () => { socks.delete(sid); if (h.disconnect) h.disconnect(); });
+    req.on('close', () => { socks.delete(sid); live.delete(sid); if (h.disconnect) h.disconnect(); });
     return;
   }
   if (url.pathname === '/__sock/emit' && req.method === 'POST') {
