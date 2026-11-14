@@ -29,6 +29,19 @@
   S.bal = 0;
   S.locked = 0;
   const won = (n) => Number(n).toLocaleString('ko-KR') + '원';
+  // ── 티어 ──
+  const tierName = (i) => (RF.cat && RF.cat.tiers && RF.cat.tiers[i] ? RF.cat.tiers[i].name : '');
+  const tierIdx = (pts) => Math.min(((RF.cat && RF.cat.tiers && RF.cat.tiers.length) || 12) - 1, Math.floor((pts || 0) / ((RF.cat && RF.cat.tierStep) || 3)));
+  RF.tierChip = (t) => (t ? `<span class="tier" style="--tc:${t.color}">${esc(t.name)}</span>` : '');
+  /** 대결 결과의 티어 변화 문장 { text, up, down } */
+  RF.tierNote = (t) => {
+    if (!t || !RF.cat || !RF.cat.tiers) return null;
+    const step = RF.cat.tierStep || 3, ib = tierIdx(t.before), ia = tierIdx(t.after), top = ia === RF.cat.tiers.length - 1;
+    let text = t.delta > 0 ? '🏅 티어 +1점' : t.delta < 0 ? '📉 티어 −1점' : '🏅 티어 점수 변화 없음 (0점 아래로는 내려가지 않아요)';
+    text += ` · ${tierName(ia)}${top ? ` (${t.after}점)` : ` (${t.after - ia * step}/${step})`}`;
+    if (ia > ib) text += ` 🎉 ${tierName(ia)}(으)로 승급!`; else if (ia < ib) text += ` ⬇ ${tierName(ia)}(으)로 강등`;
+    return { text, up: ia > ib, down: ia < ib };
+  };
   RF.won = won;
   function updateBal() { const el = $('bal'); if (el) el.textContent = '💰 ' + won(S.bal || 0); const m = $('mkBal'); if (m) m.textContent = won(S.bal || 0); }
   const COST = () => (RF.cat && RF.cat.pullCost) || 1000;
@@ -41,7 +54,7 @@
   /** 서버가 확정한 계정 정보(잔액/보관함/닉네임) 적용 */
   RF.setAccount = (a) => {
     if (a.secret && RF.byId && RF.cat) for (const k in a.secret) { RF.byId[k] = a.secret[k]; const ix = RF.cat.players.findIndex((x) => x.id === k); if (ix >= 0) RF.cat.players[ix] = a.secret[k]; } // 보유한 초월 캐릭터의 실제 정보
-    S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email; S.att = a.att || null; S.admin = !!a.admin;
+    S.uid = a.id; S.inv = a.inv || {}; S.pulls = a.pulls || 0; S.bal = a.bal || 0; S.locked = a.locked || 0; S.name = a.nick || S.name; S.email = a.email; S.att = a.att || null; S.admin = !!a.admin; S.pts = a.pts || 0; S.tier = a.tier || null;
     updateBal();
     if (RF.ready && RF.cat) { sanitizeLineup(); if (RF.screen === 'gacha') renderGacha(); if (RF.screen === 'home') renderHome(); }
   };
@@ -343,9 +356,13 @@
     const list = $('rankList'); list.innerHTML = '<p class="tiny center">불러오는 중…</p>';
     const d = await loadPlayers(true); if (!d) { list.innerHTML = '<p class="tiny center">불러오지 못했어요</p>'; return; }
     $('rankSub').textContent = `${d.players.length}명${d.admin ? ' · 관리자' : ''}`;
-    list.innerHTML = d.players.map((p, i) => `<div class="rk${p.me ? ' me' : ''}${i === 0 ? ' top' : ''}">
-      <span class="rn">${medal(i)}</span><span class="nm">${esc(p.nick)}${p.me ? ' <small>(나)</small>' : ''}<small>보유 캐릭터 ${p.owned}</small></span>
-      <b class="bl">${won(p.bal)}</b>${d.admin ? `<span class="adm"><button data-money="${esc(p.id)}" data-nick="${esc(p.nick)}" data-bal="${p.bal}" aria-label="돈 관리">💰</button>${p.me ? '' : `<button data-del="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="계정 삭제">🗑</button>`}</span>` : ''}</div>`).join('');
+    const mode = RF.rankMode || 'money';
+    $('rankTop').innerHTML = `<div class="seg" id="rkTabs"><button data-m="money" class="${mode === 'money' ? 'on' : ''}">💰 돈 랭킹</button><button data-m="tier" class="${mode === 'tier' ? 'on' : ''}">🏅 티어 랭킹</button></div>`;
+    $('rkTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b) { RF.rankMode = b.dataset.m; renderRank(); } });
+    const players = d.players.slice(); if (mode === 'tier') players.sort((a, b) => (b.pts || 0) - (a.pts || 0) || b.bal - a.bal);
+    list.innerHTML = players.map((p, i) => `<div class="rk${p.me ? ' me' : ''}${i === 0 ? ' top' : ''}">
+      <span class="rn">${medal(i)}</span><span class="nm">${esc(p.nick)}${p.me ? ' <small>(나)</small>' : ''}<small>${RF.cat.tiers && RF.cat.tiers[p.tier] ? `<span class="tier sm" style="--tc:${RF.cat.tiers[p.tier].color}">${esc(RF.cat.tiers[p.tier].name)}</span> ` : ''}${p.pts || 0}점 · 캐릭터 ${p.owned}</small></span>
+      <b class="bl">${mode === 'tier' ? (p.pts || 0) + '점' : won(p.bal)}</b>${d.admin ? `<span class="adm"><button data-money="${esc(p.id)}" data-nick="${esc(p.nick)}" data-bal="${p.bal}" aria-label="돈 관리">💰</button>${p.me ? '' : `<button data-del="${esc(p.id)}" data-nick="${esc(p.nick)}" aria-label="계정 삭제">🗑</button>`}</span>` : ''}</div>`).join('');
     list.querySelectorAll('[data-money]').forEach((b) => b.addEventListener('click', () => moneyModal(b.dataset.money, b.dataset.nick, +b.dataset.bal)));
     list.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delModal(b.dataset.del, b.dataset.nick)));
     renderTopLine(d);
@@ -377,7 +394,7 @@
 
   function renderHome() {
     renderAttend(); loadPlayers().then(renderTopLine);
-    $('nameInput').value = S.name; $('profAv').textContent = (S.name || 'P').slice(0, 1).toUpperCase(); $('profOvr').textContent = teamAvg(); $('profSub').textContent = won(S.bal) + ' · 획득 선수 ' + Object.keys(S.inv).length + '명'; $('acctMail').textContent = S.email || '';
+    $('nameInput').value = S.name; $('profAv').textContent = (S.name || 'P').slice(0, 1).toUpperCase(); $('profOvr').textContent = teamAvg(); $('profTier').innerHTML = S.tier ? `${RF.tierChip(S.tier)}<span class="tdots">${Array.from({ length: S.tier.step }, (_, k) => `<i class="${S.tier.top || k < S.tier.into ? 'on' : ''}"></i>`).join('')}</span><small>${S.pts}점 · 이기면 +1 / 지면 −1</small>` : ''; $('profSub').textContent = won(S.bal) + ' · 획득 선수 ' + Object.keys(S.inv).length + '명'; $('acctMail').textContent = S.email || '';
     $('homeTeam').innerHTML = S.lineup.map((id, i) => {
       const p = RF.byId[id], c = rarOf(p.rarity).color;
       return `<div class="mini" style="--rc:${c}"><b>${effOvr(id, RF.cat.slots[i])}</b>${RF.cat.slots[i]}</div>`;

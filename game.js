@@ -247,10 +247,13 @@
     $('resNote').textContent = d.forfeit ? (win ? '상대가 경기를 떠나 기권승 처리되었습니다.' : '기권패 처리되었습니다.') : draw ? '무승부입니다. 한 판 더?' : win ? '축하합니다! 승리했어요 🎉' : '아쉽네요. 다시 도전해보세요!';
     $('resAgain').disabled = false; $('resAgain').textContent = '다시 하기';
     const old = document.getElementById('resReward'); if (old) old.remove();
+    const oldT = document.getElementById('resTier'); if (oldT) oldT.remove();
     let extra = '';
     if (d.reward) extra = `💰 +${RF.won(d.reward.amount)} 획득! (잔액 ${RF.won(d.reward.bal)})`;
     else if (d.stake) extra = d.pay > 0 ? `💰 내기 승리! +${RF.won(d.stake)} (판돈 ${RF.won(d.stake * 2)} 획득)` : d.pay < 0 ? `💸 내기 패배 -${RF.won(d.stake)}` : `🤝 무승부 — 판돈 ${RF.won(d.stake)} 환급`;
     if (extra) { const rw = document.createElement('div'); rw.id = 'resReward'; rw.className = 'res-reward'; rw.textContent = extra; $('resNote').after(rw); }
+    const tn = RF.tierNote && RF.tierNote(d.tier);
+    if (tn) { const tt = document.createElement('div'); tt.id = 'resTier'; tt.className = 'res-tier' + (tn.up ? ' up' : tn.down ? ' down' : ''); tt.textContent = tn.text; ($('resReward') || $('resNote')).after(tt); }
     renderSummary(d.stats, draw ? 'draw' : win ? 'win' : 'lose');
     if (!d.forfeit) banner('🏁 FULL TIME');
     setTimeout(() => { $('resultPanel').classList.remove('hidden'); banner(''); $('countdown').classList.add('hidden'); resultFx(draw ? 'draw' : win ? 'win' : 'lose'); }, d.forfeit ? 0 : 1200);

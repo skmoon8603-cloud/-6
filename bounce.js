@@ -138,6 +138,7 @@
       $('brTitle').textContent = win ? 'WIN' : 'LOSE';
       $('brScore').textContent = (side === 0 ? d.score[0] + ' : ' + d.score[1] : d.score[1] + ' : ' + d.score[0]);
       $('brNote').textContent = d.stake ? (d.pay > 0 ? `💰 판돈 획득 +${won(d.pay * 2 - d.pay)}` : d.pay < 0 ? `💸 판돈 −${won(-d.pay)}` : '판돈 환급') : d.reward ? `🎉 승리 보상 +${won(d.reward.amount)} (잔액 ${won(d.reward.bal)})` : (d.forfeit ? (win ? '상대가 나가서 승리했어요' : '') : '');
+      { const o = document.getElementById('brTier'); if (o) o.remove(); const tn = RF.tierNote && RF.tierNote(d.tier); if (tn) { const tt = document.createElement('div'); tt.id = 'brTier'; tt.className = 'res-tier' + (tn.up ? ' up' : tn.down ? ' down' : ''); tt.textContent = tn.text; $('brNote').after(tt); } }
       $('bResult').classList.remove('hidden');
       sfx(win ? 'legend' : 'save');
     });

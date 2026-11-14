@@ -550,3 +550,16 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .inv-bar{position:absolute;left:0;bottom:0;height:4px;width:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));transform-origin:left;animation:invBar linear forwards}
 @keyframes invBar{to{transform:scaleX(0)}}
 .pv-n{display:flex;align-items:center;gap:4px;min-width:0}
+
+/* ── 티어 ── */
+.tier{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:800;font-size:12px;color:#0b1220;background:var(--tc,#cd7f32);box-shadow:0 0 12px color-mix(in srgb,var(--tc,#cd7f32) 55%,transparent)}
+.tier.sm{font-size:10px;padding:1px 7px}
+.prof-tier{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.prof-tier small{opacity:.7;font-size:11px}
+.tdots{display:inline-flex;gap:4px}.tdots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18)}.tdots i.on{background:#ffd54a;box-shadow:0 0 8px #ffd54a}
+.res-tier{margin:8px auto 0;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.08);font-weight:700;font-size:14px;max-width:92%}
+.res-tier.up{background:linear-gradient(90deg,#ffd54a33,#ff8a3d33);color:#ffe28a}
+.res-tier.down{background:#ff4d4d22;color:#ffaaaa}
+#rankTop .seg{display:flex;gap:6px;margin:0 0 10px}
+#rankTop .seg button{flex:1;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:inherit;font-weight:700}
+#rankTop .seg button.on{background:#2b8a3e;border-color:#51cf66}

@@ -72,7 +72,9 @@ function attach(io, { accounts, autoloop = true }) {
         if (a) { reward = { amount: K.BOUNCE_REWARD, bal: a.bal }; emit(room.players[0], 'account', a); }
       }
     } catch (e) { log(e); }
-    room.players.forEach((p, side) => emit(p, 'bz:end', { winner, you: side, score: g.score.slice(), forfeit, reward: side === 0 ? reward : null, stake: settle && settle.stake ? settle.stake : 0, pay: settle && settle.stake ? (settle.winnerId ? (settle.winnerId === room.players[side].uid ? settle.stake : -settle.stake) : 0) : 0 }));
+    let rank = null;
+    try { if (!room.cpu && winner >= 0 && room.players.length === 2 && room.players[winner] && room.players[1 - winner]) { rank = await accounts.ranked(room.players[winner].uid, room.players[1 - winner].uid); if (rank) for (const p of room.players) if (rank[p.uid]) emit(p, 'account', rank[p.uid].acct); } } catch (e) { log(e); }
+    room.players.forEach((p, side) => emit(p, 'bz:end', { tier: rank && rank[p.uid] ? { before: rank[p.uid].before, after: rank[p.uid].after, delta: rank[p.uid].delta } : null, winner, you: side, score: g.score.slice(), forfeit, reward: side === 0 ? reward : null, stake: settle && settle.stake ? settle.stake : 0, pay: settle && settle.stake ? (settle.winnerId ? (settle.winnerId === room.players[side].uid ? settle.stake : -settle.stake) : 0) : 0 }));
   }
 
   function step() {

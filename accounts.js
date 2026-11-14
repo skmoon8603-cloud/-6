@@ -6,6 +6,7 @@
 const C = require('./catalog');
 const K = require('./const');
 const I = require('./inventory');
+const T = require('./tier');
 const crypto = require('crypto');
 const scrypt = (pw, salt) => new Promise((res, rej) => crypto.scrypt(pw, salt, 32, (e, k) => (e ? rej(e) : res(k))));
 const normUser = (n) => String(n || '').normalize('NFC').trim().toLowerCase();
@@ -39,6 +40,7 @@ const pub = (a) => ({
   secret: C.secretFor(a.inv), // 보유한 숨김(초월) 캐릭터의 실제 정보
   att: attStatus(a),
   admin: isAdmin(a.id),
+  pts: a.pts || 0, tier: T.tierOf(a.pts || 0),
 });
 
 class Accounts {
@@ -139,7 +141,7 @@ class Accounts {
   async players(viewerId) {
     const admin = isAdmin(viewerId);
     const list = (await this.store.listAll()).filter((a) => !String(a.id).startsWith('__')).map((a) => ({
-      nick: nickOf(a), bal: a.bal || 0, owned: Object.keys(a.inv || {}).filter((k) => a.inv[k] > 0).length,
+      nick: nickOf(a), bal: a.bal || 0, pts: a.pts || 0, tier: T.tierOf(a.pts || 0).i, owned: Object.keys(a.inv || {}).filter((k) => a.inv[k] > 0).length,
       ...(admin ? { id: a.id, locked: !!a.locked } : {}), ...(a.id === viewerId ? { me: true } : {}),
     }));
     list.sort((x, y) => y.bal - x.bal || x.nick.localeCompare(y.nick));
@@ -172,6 +174,17 @@ class Accounts {
     await this.store.remove(targetId);
     console.log(`[관리자] ${adminId} 이(가) 계정 삭제: ${targetId}`);
     return { ok: true, id: targetId, nick: nickOf(a) };
+  }
+
+  /** 사람끼리 대결 결과를 티어 점수에 반영: 승자 +1, 패자 −1(0 미만 불가). 결과 { [uid]: { before, after, delta, acct } } */
+  async ranked(winnerId, loserId) {
+    if (!winnerId || !loserId || winnerId === loserId) return null;
+    return this.store.txn([winnerId, loserId], (m) => {
+      const w = m[winnerId], l = m[loserId]; const out = {};
+      if (w) { const b = w.pts || 0; w.pts = b + 1; out[winnerId] = { before: b, after: w.pts, delta: 1, acct: pub(w) }; }
+      if (l) { const b = l.pts || 0; l.pts = Math.max(0, b - 1); out[loserId] = { before: b, after: l.pts, delta: l.pts - b, acct: pub(l) }; }
+      return out;
+    });
   }
 
   async reward(id, amount) {
