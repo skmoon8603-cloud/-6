@@ -22,6 +22,7 @@ const ADMIN_ID_ = process.env.ADMIN_ID || 'u-skmoon';
 const { Market } = require(modPath('market'));
 const { Stocks, SLOT_MS } = require(modPath('stocks'));
 const chatNet = require(modPath('chat'));
+const rpg = require(modPath('rpg')); // 도박 RPG 연동 (세이브 저장 + 실시간 접속)
 const flashNet = require(modPath('flash'));
 const presenceNet = require(modPath('presence'));
 const C = require(modPath('catalog'));
@@ -59,6 +60,7 @@ const onNick = (uid, nick) => { if (!ioRef) return; for (const [, s] of ioRef.of
 const A = api.create({ accounts, auth, market, onMarket, stocks, onStock, onNick });
 let game = { stats: () => ({}), stop() {} };
 let bounce = { stop() {} };
+rpg.http(app, { store, auth, accounts });
 app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.stats(), uptime: Math.round(process.uptime()) }));
 app.get('/api/catalog', (_req, res) => { res.set('Cache-Control', 'public, max-age=300'); res.json(api.catalogPayload()); });
 app.get('/api/config', A.config);
@@ -95,7 +97,7 @@ if (fs.existsSync(path.join(PUB, 'index.html'))) {
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: process.env.CORS_ORIGIN || false },
+  cors: { origin: process.env.CORS_ORIGIN || (process.env.RPG_ORIGINS || 'https://skmoon8603-cloud.github.io').split(',') }, // 도박 RPG(GitHub Pages)에서의 접속 허용
   pingInterval: 10000,
   pingTimeout: 15000,
   maxHttpBufferSize: 1e5,
@@ -120,6 +122,7 @@ const io = new Server(server, {
   flashNet.attach(io, { isAdmin });
   presence = presenceNet.attach(io, { accounts });
   bounce = bounceNet.attach(io, { accounts });
+  rpg.attach(io, { auth, accounts });
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
 })().catch((e) => { console.error('시작 실패', e); process.exit(1); });
 
