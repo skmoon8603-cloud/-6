@@ -246,6 +246,15 @@ class Accounts {
     });
   }
 
+  /** 운영자 요청 1회성: 계정에 캐릭터 1장 지급 (flag 로 한 번만) */
+  async grantItem(id, pid, flag) {
+    return this.store.txn([id], (m) => {
+      const a = m[id]; if (!a) return { ok: false };
+      if (a[flag]) return { ok: true, already: true };
+      if (!(a.inv[pid] > 0)) a.inv[pid] = 1; a[flag] = true; return { ok: true };
+    });
+  }
+
   async grantAllByNick(nick) {
     nick = String(nick).toLowerCase();
     let ids = await this.store.findByNick(nick);
