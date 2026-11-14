@@ -46,6 +46,7 @@
         <button id="btnPractice" class="tile t-cpu"><i>🤖</i><b>CPU 연습</b><small>이기면 +3,000원</small></button>
         <button id="btnBounce" class="tile t-bounce"><i>🏓</i><b>원 바운스</b><small>AI · 친구 · 내기</small></button>
       </div>
+      <button id="btnStock" class="stock-banner"><i>📈</i><span><b>구단 주식</b><small>전 서버 공통 시세 · 5분마다 변동</small></span><em>›</em></button>
       <div class="join">
         <input id="codeInput" class="inp code-inp" maxlength="8" placeholder="방 코드 입력" autocomplete="off" autocapitalize="characters" spellcheck="false">
         <button id="btnJoin" class="btn primary">입장</button>
@@ -127,6 +128,17 @@
       </div>
       <div class="seg" id="mkTabs"><button data-t="buy" class="on">🛒 영입</button><button data-t="sell">💼 판매</button><button data-t="mine">📌 내 매물</button></div>
       <div id="mkBody"></div>
+    </section>
+
+    <!-- 주식 -->
+    <section id="scr-stock" class="screen">
+      <div class="mk-head">
+        <div><div class="sec-title" style="margin:0">📈 구단 주식</div><div id="stSub" class="tiny" style="margin:2px 0 0"></div></div>
+        <div class="mk-bal"><small>보유 코인</small><b id="stBal">0원</b></div>
+      </div>
+      <div id="stSum" class="st-sum"></div>
+      <div id="stList" class="st-list"></div>
+      <p class="tiny center">게임 속 가상 재화(원)로만 거래해요. 시세는 모든 플레이어가 똑같고 5분마다 바뀌어요.</p>
     </section>
 
     <!-- 채팅 -->

@@ -21,7 +21,7 @@ function catalogPayload() {
   };
 }
 
-function create({ accounts, auth, market, onMarket }) {
+function create({ accounts, auth, market, onMarket, stocks, onStock }) {
   const rand01 = () => require('crypto').randomInt(0, 1e9) / 1e9;
   const bearer = (req) => { const h = req.headers.authorization || ''; return h.startsWith('Bearer ') ? h.slice(7) : ''; };
   const who = (req) => { const s = auth.verifySession(bearer(req)); return s ? s.uid : null; };
@@ -121,6 +121,17 @@ function create({ accounts, auth, market, onMarket }) {
       else return { status: 400, body: { error: 'bad_op' } };
       if (out.ok && onMarket) onMarket(b.op, uid, out);
       return { status: out.error ? (out.error === 'not_enough' ? 402 : 400) : 200, body: out };
+    }),
+    stocksView: authed(async (_req, uid) => (stocks ? { status: 200, body: await stocks.view(uid) } : { status: 404, body: { error: 'off' } })),
+    stocksAct: authed(async (req, uid) => {
+      const b = req.body || {}; let out;
+      if (!stocks) return { status: 404, body: { error: 'off' } };
+      if (limited('s:' + uid, 30, 10000)) return { status: 429, body: { error: 'too_many_requests' } };
+      if (b.op === 'buy') out = await stocks.buy(uid, String(b.id || ''), b.qty, b.slot);
+      else if (b.op === 'sell') out = await stocks.sell(uid, String(b.id || ''), b.qty, b.slot);
+      else return { status: 400, body: { error: 'bad_op' } };
+      if (out.ok && onStock) onStock(uid, out);
+      return { status: out.error ? (out.error === 'not_enough' ? 402 : out.error === 'stale' ? 409 : 400) : 200, body: out };
     }),
     nick: authed(async (req, uid) => {
       const a = await accounts.setNick(uid, req.body && req.body.nick);

@@ -105,6 +105,17 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   await D.page.waitForSelector('#scr-bounce:not(.hidden)', { timeout: 8000 }); await E.page.waitForSelector('#scr-bounce:not(.hidden)', { timeout: 8000 }); await sleep(2500);
   ok(await D.page.evaluate(() => document.getElementById('bWait').classList.contains('hidden')), '수락하자 원 바운스 방이 만들어지고 둘이 입장해 시작');
   await shot(D, 'bounce-invited');
+  console.log('[6] 주식');
+  await grant(A, 100000); await A.page.evaluate(() => RF.go('home')); await sleep(300);
+  await A.page.click('#btnStock'); await A.page.waitForSelector('#stList .st-row', { timeout: 8000 });
+  ok((await A.page.locator('#stList .st-row').count()) === 8, '주식 8종목 표시');
+  const names = await A.page.locator('#stList .st-nm b').allTextContents(); ok(['아스널', '브라이턴', '맨시티', '첼시', '에버턴', '본머스', '브렌트퍼드', '토트넘'].every((n) => names.includes(n)), '종목 이름 확인');
+  ok(/다음 시세 변경까지 \d\d:\d\d/.test(await A.page.textContent('#stSub')), '5분 카운트다운 표시');
+  await shot(A, 'stock');
+  await A.page.locator('#stList .st-row').first().click(); await A.page.waitForSelector('#stBuy'); await A.page.fill('#stQty', '3'); await shot(A, 'stock-modal'); await A.page.click('#stBuy'); await sleep(700);
+  ok(/3주 매수/.test(await A.page.textContent('#toast')) && (await A.page.textContent('#stList')).includes('보유 3주') && (await A.page.evaluate(() => RF.state.bal)) >= 0, '3주 매수 → 안내 + 보유 표시');
+  await A.page.locator('#stList .st-row').first().click(); await A.page.waitForSelector('#stSell'); await A.page.fill('#stQty', '3'); await A.page.click('#stSell'); await sleep(700);
+  ok((await A.page.textContent('#stList')).includes('미보유'), '전량 매도');
   A.errs.push(...D.errs, ...E.errs);
   for (const p of [A, B]) ok(p.errs.length === 0, `${p.name} 콘솔/페이지 오류 없음 ${p.errs.join(' | ')}`);
   await browser.close();

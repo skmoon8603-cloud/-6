@@ -20,6 +20,7 @@ const { createStore } = require(modPath('store'));
 const { Accounts, isAdmin } = require(modPath('accounts'));
 const ADMIN_ID_ = process.env.ADMIN_ID || 'u-skmoon';
 const { Market } = require(modPath('market'));
+const { Stocks, SLOT_MS } = require(modPath('stocks'));
 const chatNet = require(modPath('chat'));
 const flashNet = require(modPath('flash'));
 const presenceNet = require(modPath('presence'));
@@ -39,6 +40,7 @@ app.use((req, res, next) => {
 const store = createStore();
 const accounts = new Accounts(store);
 const market = new Market(store);
+const stocks = new Stocks(store);
 let chat = { sys() {} };
 let presence = { stop() {} };
 let ioRef = null;
@@ -52,7 +54,8 @@ const onMarket = (op, uid, out) => {
   }
   if (ioRef) ioRef.emit('market:changed');
 };
-const A = api.create({ accounts, auth, market, onMarket });
+const onStock = (uid, out) => pushAcct(uid, out.acct);
+const A = api.create({ accounts, auth, market, onMarket, stocks, onStock });
 let game = { stats: () => ({}), stop() {} };
 let bounce = { stop() {} };
 app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.stats(), uptime: Math.round(process.uptime()) }));
@@ -70,6 +73,8 @@ app.post('/api/attend', A.attend);
 app.get('/api/players', A.players);
 app.get('/api/market', A.marketView);
 app.post('/api/market', A.marketAct);
+app.get('/api/stocks', A.stocksView);
+app.post('/api/stocks', A.stocksAct);
 app.post('/api/admin/money', A.adminMoney);
 app.post('/api/admin/delete', A.adminDelete);
 app.get('/api/version', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ v: VERSION, goals: [1, 2, 3].filter((i) => ['goal' + i + '.mp3', 'public/goal' + i + '.mp3'].some((f) => fs.existsSync(path.join(__dirname, f)))) }); });
@@ -106,6 +111,7 @@ const io = new Server(server, {
     console.log('[지급] skmoon:', g.ok ? (g.already ? '이미 지급됨' : '모든 캐릭터 지급 완료') : `실패 (일치하는 계정 ${g.found}개)`);
   } catch (e) { console.error('[지급] 오류', e.message); }
   ioRef = io;
+  { let lastSlot = Math.floor(Date.now() / SLOT_MS); setInterval(() => { const s = Math.floor(Date.now() / SLOT_MS); if (s !== lastSlot) { lastSlot = s; io.emit('stocks:tick'); } }, 2000).unref(); } // 5분마다 시세 변경 알림
   game = net.attach(io, { accounts, auth });
   chat = chatNet.attach(io, { accounts, isAdmin });
   flashNet.attach(io, { isAdmin });

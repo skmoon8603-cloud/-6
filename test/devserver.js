@@ -17,8 +17,10 @@ const store = new MemoryStore(); const accounts = new Accounts(store);
 const live = new Map(); // sid -> sock (채팅 방/브로드캐스트용)
 const { Market } = require('../lib/market');
 const market = new Market(store);
+const { Stocks } = require('../lib/stocks');
+const stocks = new Stocks(store);
 let ioRef = null;
-const A = api.create({ accounts, auth, market, onMarket: (op, uid, out) => { const push = (u, a) => { if (a) for (const [, sk] of live) if (sk.data && sk.data.uid === u) sk.emit('account', a); }; push(uid, out.acct); if (op === 'buy') push(out.seller, out.sellerAcct); if (ioRef) ioRef.emit('market:changed'); } });
+const A = api.create({ accounts, auth, market, stocks, onStock: (uid, out) => { for (const [, sk] of live) if (sk.data && sk.data.uid === uid && out.acct) sk.emit('account', out.acct); }, onMarket: (op, uid, out) => { const push = (u, a) => { if (a) for (const [, sk] of live) if (sk.data && sk.data.uid === u) sk.emit('account', a); }; push(uid, out.acct); if (op === 'buy') push(out.seller, out.sellerAcct); if (ioRef) ioRef.emit('market:changed'); } });
 const mw = [];
 
 const PUB = path.join(__dirname, '..', 'public');
@@ -65,7 +67,7 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/__test/ver') { global.__VER = url.searchParams.get('v'); res.writeHead(200); return res.end('ok'); }
   if (url.pathname === '/api/version') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ v: global.__VER || 'dev', goals: [1, 2, 3].filter((i) => fs.existsSync(path.join(PUB, 'goal' + i + '.mp3'))) })); }
   if (url.pathname === '/api/catalog') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(api.catalogPayload())); }
-  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend, '/api/players': A.players, '/api/admin/money': A.adminMoney, '/api/admin/delete': A.adminDelete, '/api/market': (rq, rs) => (rq.body === undefined ? A.marketView(rq, rs) : A.marketAct(rq, rs)) };
+  const routes = { '/api/config': A.config, '/api/login': A.login, '/api/register': A.register, '/api/signin': A.signin, '/api/me': A.me, '/api/pull': A.pull, '/api/nick': A.nick, '/api/attend': A.attend, '/api/players': A.players, '/api/admin/money': A.adminMoney, '/api/admin/delete': A.adminDelete, '/api/stocks': (rq, rs) => (rq.body === undefined ? A.stocksView(rq, rs) : A.stocksAct(rq, rs)), '/api/market': (rq, rs) => (rq.body === undefined ? A.marketView(rq, rs) : A.marketAct(rq, rs)) };
   if (routes[url.pathname]) {
     const b = req.method === 'POST' ? await body(req) : undefined;
     const rq = { headers: req.headers, body: b, ip: req.socket.remoteAddress };

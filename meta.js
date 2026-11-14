@@ -249,14 +249,14 @@
   };
 
   // ───────────── 화면 전환 ─────────────
-  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'rank', 'market', 'chat', 'room'];
+  const SCREENS = ['home', 'gacha', 'box', 'dex', 'team', 'rank', 'market', 'stock', 'chat', 'room'];
   RF.go = (name) => {
     if (!RF.cat && name !== 'home') { RF.toast('서버 데이터를 불러오는 중입니다', true); return; }
     if (name === 'home' && RF.hooks.inRoom && RF.hooks.inRoom()) name = 'room';
     SCREENS.forEach((s) => $('scr-' + s).classList.toggle('active', s === name));
     document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === name || (name === 'dex' && b.dataset.go === 'box')));
     RF.screen = name;
-    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, rank: renderRank, market: () => RF.hubMarket && RF.hubMarket(), chat: () => RF.hubChat && RF.hubChat(), room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
+    ({ home: renderHome, gacha: renderGacha, box: renderBox, dex: renderDex, team: renderTeam, rank: renderRank, market: () => RF.hubMarket && RF.hubMarket(), stock: () => RF.hubStock && RF.hubStock(), chat: () => RF.hubChat && RF.hubChat(), room: () => RF.hooks.renderRoom && RF.hooks.renderRoom() }[name] || (() => {}))();
     const sc = $('scr-' + name); if (sc) sc.scrollTop = 0;
   };
   document.querySelectorAll('#nav button').forEach((b) => b.addEventListener('click', () => { RF.sfx('tap'); RF.go(b.dataset.go); }));

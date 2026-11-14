@@ -139,6 +139,74 @@
   document.addEventListener('click', (e) => { const b = e.target.closest('#mkTabs button'); if (b) { M.tab = b.dataset.t; sfx('tap'); renderMarket(); } });
   RF.hubMarket = async () => { renderMarket(); await mkLoad(); if (RF.screen === 'market') renderMarket(); };
 
+  // ───────────── 주식 ─────────────
+  const SK = { data: null, busy: false, timer: 0 };
+  const SERR = { stale: '시세가 방금 바뀌었어요. 새 시세를 확인해 주세요', not_enough: '잔액이 부족해요', not_enough_shares: '보유 수량이 부족해요', bad_qty: '수량은 1~10,000 사이로 입력해 주세요', max_hold: '한 종목은 최대 100,000주까지 보유할 수 있어요', too_many_requests: '잠시 후 다시 시도해 주세요' };
+  const pct = (a, b) => (b ? ((a - b) / b) * 100 : 0);
+  const sgn = (v) => (v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
+  const arrow = (v) => (v > 0 ? '▲' : v < 0 ? '▼' : '–');
+  function spark(h, w, ht, color, grid) {
+    const mn = Math.min(...h), mx = Math.max(...h), r = mx - mn || 1, st = w / (h.length - 1 || 1);
+    const pts = h.map((v, i) => `${(i * st).toFixed(1)},${(ht - 3 - ((v - mn) / r) * (ht - 6)).toFixed(1)}`).join(' ');
+    const g = grid ? [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${w}" y1="${(ht * f).toFixed(1)}" y2="${(ht * f).toFixed(1)}" stroke="#ffffff14"/>`).join('') : '';
+    return `<svg viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none" class="spark">${g}<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${grid ? 2 : 1.6}" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+  const mmss = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+  async function stLoad() {
+    try { const r = await RF.api('/api/stocks'); if (!r.ok) throw new Error(); SK.data = await r.json(); SK.at = Date.now(); } catch (e) { if (!SK.data) RF.toast('주식 시세를 불러오지 못했어요', true); }
+  }
+  const holdOf = (id) => (SK.data && SK.data.hold && SK.data.hold[id]) || { n: 0, c: 0 };
+  function renderStock() {
+    const d = SK.data; $('stBal').textContent = won(S.bal || 0);
+    if (!d) { $('stList').innerHTML = '<p class="tiny center">불러오는 중…</p>'; return; }
+    let val = 0, cost = 0; for (const s of d.stocks) { const h = holdOf(s.id); val += h.n * s.price; cost += h.c; }
+    const pl = val - cost;
+    $('stSum').innerHTML = `<div><small>주식 평가액</small><b>${won(val)}</b></div><div><small>평가 손익</small><b class="${sgn(pl)}">${pl > 0 ? '+' : ''}${won(pl)} (${cost ? (pct(val, cost)).toFixed(1) : '0.0'}%)</b></div><div><small>총 자산</small><b>${won((S.bal || 0) + val)}</b></div>`;
+    $('stList').innerHTML = d.stocks.map((s) => {
+      const ch = pct(s.price, s.prev), h = holdOf(s.id), cls = sgn(ch);
+      return `<button class="st-row" data-id="${s.id}"><i class="st-dot" style="background:${s.color}"></i><span class="st-nm"><b>${esc(s.name)}</b><small>${h.n ? `보유 ${h.n.toLocaleString('ko-KR')}주 · ${h.n * s.price - h.c >= 0 ? '+' : ''}${won(h.n * s.price - h.c)}` : '미보유'}</small></span>${spark(s.hist.slice(-48), 90, 34, cls === 'down' ? '#4aa3ff' : cls === 'up' ? '#ff5a5f' : '#9aa7b8')}<span class="st-px"><b>${won(s.price)}</b><small class="${cls}">${arrow(ch)} ${Math.abs(ch).toFixed(2)}%</small></span></button>`;
+    }).join('');
+    tickSub();
+  }
+  function tickSub() {
+    if (!SK.data) return; const left = SK.data.next - (Date.now() - SK.at);
+    const e = $('stSub'); if (e) e.textContent = `다음 시세 변경까지 ${mmss(left)}`;
+    if (left < -1500 && !SK.busy && RF.screen === 'stock') stRefresh();
+  }
+  async function stRefresh() { if (SK.busy) return; SK.busy = true; try { await stLoad(); } finally { SK.busy = false; } if (RF.screen === 'stock') { renderStock(); if (SK.openId && document.querySelector('#stQty')) stDetail(SK.openId, true); } }
+  function stDetail(id, keep) {
+    const d = SK.data, s = d.stocks.find((x) => x.id === id); if (!s) return; SK.openId = id;
+    const h = holdOf(id), ch = pct(s.price, s.prev), cls = sgn(ch), hi = Math.max(...s.hist), lo = Math.min(...s.hist);
+    const prevQty = keep && $('stQty') ? $('stQty').value : '1';
+    RF.openModal(`<h3 style="display:flex;align-items:center;gap:8px"><i class="st-dot" style="background:${s.color}"></i>${esc(s.name)}</h3>
+      <div class="st-big"><b>${won(s.price)}</b><span class="${cls}">${arrow(ch)} ${Math.abs(ch).toFixed(2)}%</span></div>
+      <div class="st-chart">${spark(s.hist, 320, 130, cls === 'down' ? '#4aa3ff' : '#ff5a5f', true)}</div>
+      <div class="tiny" style="display:flex;justify-content:space-between"><span>24시간 최저 ${won(lo)}</span><span>최고 ${won(hi)}</span></div>
+      <div class="mk-deal"><div><small>보유</small><b>${h.n.toLocaleString('ko-KR')}주</b></div><div><small>평균 매수가</small><b>${h.n ? won(Math.round(h.c / h.n)) : '-'}</b></div><div><small>내 잔액</small><b>${won(S.bal || 0)}</b></div></div>
+      <div class="st-qty"><button data-q="1">1</button><button data-q="10">10</button><button data-q="100">100</button><button data-q="max">최대</button><input id="stQty" type="number" inputmode="numeric" min="1" max="10000" value="${esc(prevQty)}"><span>주</span></div>
+      <p id="stCost" class="tiny center" style="margin:6px 0"></p>
+      <div class="st-act"><button id="stBuy" class="btn big st-buy">매수</button><button id="stSell" class="btn big st-sell" ${h.n ? '' : 'disabled'}>매도</button></div>`);
+    const qty = () => Math.max(0, Math.floor(Number($('stQty').value) || 0));
+    const upd = () => { const q = qty(); $('stCost').textContent = q ? `${q.toLocaleString('ko-KR')}주 = ${won(q * s.price)}${q * s.price > (S.bal || 0) ? ' (잔액 부족)' : ''}` : ''; };
+    $('stQty').addEventListener('input', upd); upd();
+    document.querySelectorAll('.st-qty [data-q]').forEach((b) => b.addEventListener('click', () => { $('stQty').value = b.dataset.q === 'max' ? Math.max(1, Math.min(10000, Math.floor((S.bal || 0) / s.price))) : b.dataset.q; upd(); }));
+    const go = async (op) => {
+      if (SK.busy) return; const q = qty(); if (!q) return RF.toast('수량을 입력해 주세요', true);
+      SK.busy = true;
+      try {
+        const r = await RF.api('/api/stocks', { op, id, qty: q, slot: SK.data.slot }); const j = await r.json();
+        if (!r.ok || j.error) { RF.toast(SERR[j.error] || '실패했어요', true); sfx('lose'); if (j.error === 'stale') { SK.busy = false; await stRefresh(); } return; }
+        if (j.acct) RF.setAccount(j.acct); SK.data.hold = j.hold;
+        sfx(op === 'buy' ? 'tap' : 'win'); RF.toast(op === 'buy' ? `📈 ${s.name} ${q.toLocaleString('ko-KR')}주 매수 (${won(j.cost)})` : `${j.profit >= 0 ? '💰' : '📉'} ${s.name} ${q.toLocaleString('ko-KR')}주 매도 · 손익 ${j.profit > 0 ? '+' : ''}${won(j.profit)}`);
+        RF.closeModal(); SK.openId = null; renderStock();
+      } catch (e) { RF.toast('네트워크 오류', true); } finally { SK.busy = false; }
+    };
+    $('stBuy').addEventListener('click', () => go('buy')); $('stSell').addEventListener('click', () => go('sell'));
+  }
+  $('stList').addEventListener('click', (e) => { const b = e.target.closest('[data-id]'); if (b && SK.data) { sfx('tap'); stDetail(b.dataset.id); } });
+  $('btnStock').addEventListener('click', () => { sfx('tap'); RF.go('stock'); });
+  RF.hubStock = async () => { renderStock(); clearInterval(SK.timer); SK.timer = setInterval(() => { if (RF.screen !== 'stock') { clearInterval(SK.timer); SK.timer = 0; return; } tickSub(); }, 1000); await stLoad(); if (RF.screen === 'stock') renderStock(); };
+
   // ───────────── 채팅 ─────────────
   const CH = { joined: false, admin: false, unread: 0, hist: [] };
   const CERR = { slow: '너무 빨라요! 잠깐만요', repeat: '같은 말은 반복할 수 없어요', empty: '', not_joined: '채팅에 연결 중이에요' };
@@ -183,6 +251,7 @@
       const el = mkFlash();
       el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), Math.min(3000, (d && d.ms) || 1000));
     });
+    s.on('stocks:tick', () => { if (RF.screen === 'stock') setTimeout(stRefresh, 300 + Math.random() * 1200); else SK.data = null; });
     s.on('market:changed', () => { clearTimeout(M.t); M.t = setTimeout(async () => { if (RF.screen === 'market' && !M.busy) { await mkLoad(); if (!document.querySelector('#modal:not(.hidden)')) { if (M.tab === 'buy' && $('mkGrid')) { const n = M.data.list.length, mine = M.data.list.filter((l) => l.mine).length; $('mkSub').textContent = `매물 ${n}개 · 수수료 ${M.data.fee}% · 내 매물 ${mine}/${M.data.maxListings}`; buyGrid(); } else renderMarket(); } } else M.data = null; }, 400); });
   }
   setInterval(chHook, 700);

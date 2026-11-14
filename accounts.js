@@ -40,7 +40,7 @@ const pub = (a) => ({
   secret: C.secretFor(a.inv), // 보유한 숨김(초월) 캐릭터의 실제 정보
   att: attStatus(a),
   admin: isAdmin(a.id),
-  pts: a.pts || 0, tier: T.tierOf(a.pts || 0),
+  pts: a.pts || 0, tier: T.tierOf(a.pts || 0), stk: a.stk || {},
 });
 
 class Accounts {
