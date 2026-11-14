@@ -2,8 +2,9 @@
 /* RANDOM FOOTBALL - render.js : Canvas 경기장/선수/공/이펙트 렌더러 */
 (function () {
   const RF = window.RF;
-  const W = 1400, H = 860, M = 78, GOAL_W = 230, GOAL_D = 64, PR = 15, BR = 8;
-  const TEAM_COL = ['#35e0ff', '#ff5b5b'];
+  const W = 1800, H = 1100, M = 78, GOAL_W = 270, GOAL_D = 70, PR = 15, BR = 8;
+  const VEST = { red: '#e8363d', blue: '#2a74ff' };
+  let TEAM_COL = [VEST.blue, VEST.red]; // [내 팀, 상대 팀] 조끼 색 — 경기마다 랜덤(R.setMatch)
   const R = (RF.Render = {});
   let cv, ctx, radar, rctx, dpr = 1, cw = 0, ch = 0, sc = 1;
   let pitch = null, pitchScale = 0;
@@ -60,10 +61,10 @@
     g.fillStyle = '#fff'; g.beginPath(); g.arc(W / 2, H / 2, 4, 0, 6.2832); g.fill();
     for (const left of [true, false]) {
       const x0 = left ? 0 : W, dir = left ? 1 : -1;
-      g.strokeRect(left ? 0 : W - 230, H / 2 - 240, 230, 480);
-      g.strokeRect(left ? 0 : W - 80, H / 2 - 125, 80, 250);
-      g.beginPath(); g.arc(x0 + dir * 165, H / 2, 4, 0, 6.2832); g.fill();
-      g.beginPath(); g.arc(x0 + dir * 165, H / 2, 82, left ? -0.93 : Math.PI - 0.93 + 0, left ? 0.93 : Math.PI + 0.93); g.stroke();
+      g.strokeRect(left ? 0 : W - 300, H / 2 - 310, 300, 620);
+      g.strokeRect(left ? 0 : W - 100, H / 2 - 150, 100, 300);
+      g.beginPath(); g.arc(x0 + dir * 215, H / 2, 4, 0, 6.2832); g.fill();
+      g.beginPath(); g.arc(x0 + dir * 215, H / 2, 82, left ? -0.93 : Math.PI - 0.93 + 0, left ? 0.93 : Math.PI + 0.93); g.stroke();
       // 골대 그물
       g.save();
       g.fillStyle = 'rgba(255,255,255,.14)';
@@ -94,11 +95,13 @@
     const viewH = 470;
     sc = ch / viewH;
     if (cw / sc > W + 2 * M) sc = cw / (W + 2 * M);
-    const need = Math.min(2.4, Math.max(1, sc * dpr));
+    let need = Math.min(2.4, Math.max(1, sc * dpr));
+    need = Math.min(need, Math.sqrt(12e6 / ((W + 2 * M) * (H + 2 * M)))); // 모바일 캔버스 크기 한도(약 1,600만 화소) 안전 마진
     if (!pitch || Math.abs(need - pitchScale) > 0.25) { pitch = buildPitch(need); pitchScale = need; }
   };
   R.setMatch = (info) => {
-    side = info.side; roster = info.roster; cam.init = false; parts.length = rings.length = trail.length = dust.length = 0;
+    side = info.side; roster = info.roster;
+    { const v0 = info.vest != null ? info.vest : (Math.random() < 0.5 ? 0 : 1); const s0 = v0 === 0 ? VEST.red : VEST.blue, s1 = v0 === 0 ? VEST.blue : VEST.red; TEAM_COL = side === 0 ? [s0, s1] : [s1, s0]; const rt = document.documentElement.style; rt.setProperty('--myc', TEAM_COL[0]); rt.setProperty('--opc', TEAM_COL[1]); } cam.init = false; parts.length = rings.length = trail.length = dust.length = 0;
     R.resize();
   };
 
@@ -107,7 +110,7 @@
   R.kickFx = (x, y, power) => { rings.push({ x, y, r: 6, a: 0.7, w: 2 + power / 500 }); };
   R.goalFx = (scorerSide) => {
     const gx = scorerSide === 0 ? W : 0;
-    const cols = scorerSide === side ? ['#35e0ff', '#ffffff', '#ffc53d', '#2cff8a'] : ['#ff5b5b', '#ffffff', '#ffc53d', '#ff9b3d'];
+    const cols = scorerSide === side ? [TEAM_COL[0], '#ffffff', '#ffc53d', '#2cff8a'] : [TEAM_COL[1], '#ffffff', '#ffc53d', '#ff9b3d'];
     for (let i = 0; i < 160; i++) {
       const a = Math.random() * 6.283, s = 120 + Math.random() * 520;
       parts.push({ x: gx, y: H / 2, vx: Math.cos(a) * s * (gx === 0 ? 1 : -1) * 0.7 + (gx === 0 ? 120 : -120), vy: Math.sin(a) * s, life: 1.6 + Math.random(), max: 2.6, c: cols[i % cols.length], s: 3 + Math.random() * 5, g: 260 });
@@ -128,7 +131,12 @@
     // 그림자
     ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(x + 3, y + 7, PR * 1.05, PR * 0.6, 0, 0, 6.2832); ctx.fill();
     // 팀 링
-    ctx.strokeStyle = TEAM_COL[mine ? 0 : 1]; ctx.lineWidth = isCtrl && mine ? 4 : 3; ctx.globalAlpha = isCtrl ? 1 : 0.85;
+    if (isCtrl && mine) { // 내가 조종하는 선수: 노란 빛나는 링
+      ctx.strokeStyle = '#ffe14a'; ctx.lineWidth = 3.5; ctx.globalAlpha = 0.55 + 0.35 * Math.sin(time * 8);
+      ctx.beginPath(); ctx.arc(x, y, PR + 9, 0, 6.2832); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(255,225,74,.18)'; ctx.beginPath(); ctx.arc(x, y, PR + 9, 0, 6.2832); ctx.fill();
+    }
+    ctx.strokeStyle = isCtrl && mine ? '#ffe14a' : TEAM_COL[mine ? 0 : 1]; ctx.lineWidth = isCtrl && mine ? 4 : 3; ctx.globalAlpha = isCtrl ? 1 : 0.9;
     ctx.beginPath(); ctx.arc(x, y, PR + 3, 0, 6.2832); ctx.stroke(); ctx.globalAlpha = 1;
     // 발(달리기 애니메이션)
     const sp = Math.hypot(p[5] || 0, p[6] || 0);
@@ -142,6 +150,10 @@
     ctx.save(); ctx.beginPath(); ctx.arc(0, 0, PR, 0, 6.2832); ctx.clip();
     ctx.fillStyle = info.c2; ctx.globalAlpha = 0.9; ctx.fillRect(-5, -PR, 5, PR * 2); ctx.globalAlpha = 1;
     ctx.restore();
+    if (info.pos !== 'GK') { // 팀 조끼(빨강/파랑): 몸통을 덮고 소매(원래 유니폼 색)만 가장자리로 보인다
+      ctx.fillStyle = TEAM_COL[mine ? 0 : 1]; ctx.beginPath(); ctx.arc(0, 0, PR - 2.5, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fillRect(-PR + 4, -2, PR * 2 - 8, 4);
+    }
     ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, PR, 0, 6.2832); ctx.stroke();
     // 머리(진행 방향)
     ctx.fillStyle = '#f1c9a2'; ctx.beginPath(); ctx.arc(PR * 0.28, 0, 5.2, 0, 6.2832); ctx.fill();
@@ -158,7 +170,7 @@
     if ((p[4] & 2) && Math.random() < 0.5) dust.push({ x: x - Math.cos(ang) * PR, y: y - Math.sin(ang) * PR, life: 0.4, max: 0.4 });
     if (isCtrl) {
       const bob = Math.sin(time * 8) * 2;
-      ctx.fillStyle = mine ? '#ffffff' : '#ff9b9b'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+      ctx.fillStyle = mine ? '#ffe14a' : '#ffffffcc'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(x, y - PR - 8 + bob); ctx.lineTo(x - 7, y - PR - 20 + bob); ctx.lineTo(x + 7, y - PR - 20 + bob); ctx.closePath(); ctx.stroke(); ctx.fill();
       if (mine) { // 스태미나 바
         const bw = 30, f = Math.max(0, Math.min(1, p[3] / 100));
@@ -240,7 +252,7 @@
     const px = (x) => 4 + (flipX(x) / W) * (rw - 8), py = (y) => 4 + (flipY(y) / H) * (rh - 8);
     st.p.forEach((p, i) => {
       const own = (i >= 6 ? 1 : 0) === side; const isC = st.c[i >= 6 ? 1 : 0] + (i >= 6 ? 6 : 0) === i;
-      rctx.fillStyle = TEAM_COL[own ? 0 : 1]; rctx.beginPath(); rctx.arc(px(p[0]), py(p[1]), isC ? 4.2 : 3, 0, 6.2832); rctx.fill();
+      rctx.fillStyle = isC && own ? '#ffe14a' : TEAM_COL[own ? 0 : 1]; rctx.beginPath(); rctx.arc(px(p[0]), py(p[1]), isC ? 4.2 : 3, 0, 6.2832); rctx.fill();
       if (isC && own) { rctx.strokeStyle = '#fff'; rctx.lineWidth = 1.5; rctx.stroke(); }
     });
     rctx.fillStyle = '#fff'; rctx.beginPath(); rctx.arc(px(st.b[0]), py(st.b[1]), 3, 0, 6.2832); rctx.fill();

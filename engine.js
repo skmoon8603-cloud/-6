@@ -15,12 +15,12 @@ const r1 = (v) => Math.round(v * 10) / 10;
 
 // 팀0 기준 포메이션 [x, y]. 팀1은 180도 회전.
 const FORM = [
-  [90, H / 2],            // GK
-  [310, H / 2 - 160],     // DF
-  [310, H / 2 + 160],     // DF
-  [470, H / 2],           // MF
-  [590, H / 2 - 225],     // FW
-  [590, H / 2 + 225],     // FW
+  [110, H / 2],           // GK
+  [400, H / 2 - 205],     // DF
+  [400, H / 2 + 205],     // DF
+  [600, H / 2],           // MF
+  [760, H / 2 - 290],     // FW
+  [760, H / 2 + 290],     // FW
 ];
 
 class Match {
@@ -57,6 +57,7 @@ class Match {
         this.roster[side].push({ id, name: meta.name, num: meta.number, pos: C.SLOTS[slot], rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovr });
       }
     }
+    this.vest = Math.random() < 0.5 ? 0 : 1; // 조끼 색: 0이면 팀0=빨강/팀1=파랑, 1이면 반대 (경기마다 랜덤)
     this.ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, last: -1, lastSide: -1, owner: -1 };
     this.stats = { shots: [0, 0], passes: [0, 0], poss: [0, 0], goals: [] }; // 경기 기록 (결과 화면용)
     this.pst = this.players.map(() => ({ shots: 0, goals: 0 }));

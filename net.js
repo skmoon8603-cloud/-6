@@ -72,7 +72,7 @@ function attach(io, { accounts, auth, autoloop = true }) {
   function matchInfo(room, side) {
     const m = room.match;
     return {
-      side, roster: m.roster, seconds: m.seconds, practice: room.practice, stake: room.escrowed ? room.stake : 0,
+      side, vest: m.vest, roster: m.roster, seconds: m.seconds, practice: room.practice, stake: room.escrowed ? room.stake : 0,
       names: [room.players[0].name, room.practice ? 'CPU' : room.players[1].name],
       field: { W: K.W, H: K.H, GOAL_W: K.GOAL_W, GOAL_D: K.GOAL_D, PR: K.PR, BR: K.BR },
     };

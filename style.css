@@ -195,7 +195,7 @@ input{font:inherit;color:inherit}
 #score{display:flex;align-items:center;gap:8px;background:#050b17cc;border:1px solid #ffffff22;border-radius:14px;padding:4px 12px;font-weight:900;backdrop-filter:blur(4px)}
 #score b{font-size:24px;min-width:22px;text-align:center}
 #score .nm{font-size:12px;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cfe}
-#score .nm.l{color:#6fe3ff}#score .nm.r{color:#ff9b9b}
+#score .nm.l{color:var(--myc,#6fe3ff)}#score .nm.r{color:var(--opc,#ff9b9b)}
 #timer{font-size:15px;font-variant-numeric:tabular-nums;padding:2px 8px;border-radius:8px;background:#ffffff18;color:#fff}
 #timer.low{background:#ff4d6a;animation:pulse .6s infinite}
 #hudBtns{position:absolute;right:calc(8px + var(--safe-r));top:calc(6px + var(--safe-t));display:flex;gap:6px;align-items:center;pointer-events:auto}
