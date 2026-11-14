@@ -176,6 +176,13 @@
     s.on('chat:msg', chAdd);
     s.on('chat:online', (n) => { $('chOnline').lastChild.textContent = n + '명'; });
     s.on('chat:del', (id) => { CH.hist = CH.hist.filter((m) => m.id !== id); const e = $('chList').querySelector(`[data-id="${id}"]`); if (e) e.remove(); });
+    const mkFlash = () => { let el = document.getElementById('flashImg');
+      if (!el) { el = document.createElement('div'); el.id = 'flashImg'; el.innerHTML = '<img alt="" src="/flash.jpg">'; document.body.appendChild(el); } return el; };
+    mkFlash(); // 미리 내려받아 두기
+    s.on('flash', (d) => {
+      const el = mkFlash();
+      el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), Math.min(3000, (d && d.ms) || 1000));
+    });
     s.on('market:changed', () => { clearTimeout(M.t); M.t = setTimeout(async () => { if (RF.screen === 'market' && !M.busy) { await mkLoad(); if (!document.querySelector('#modal:not(.hidden)')) { if (M.tab === 'buy' && $('mkGrid')) { const n = M.data.list.length, mine = M.data.list.filter((l) => l.mine).length; $('mkSub').textContent = `매물 ${n}개 · 수수료 ${M.data.fee}% · 내 매물 ${mine}/${M.data.maxListings}`; buyGrid(); } else renderMarket(); } } else M.data = null; }, 400); });
   }
   setInterval(chHook, 700);

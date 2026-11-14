@@ -563,3 +563,7 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 #rankTop .seg{display:flex;gap:6px;margin:0 0 10px}
 #rankTop .seg button{flex:1;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:inherit;font-weight:700}
 #rankTop .seg button.on{background:#2b8a3e;border-color:#51cf66}
+
+#flashImg{position:fixed;inset:0;z-index:99999;background:#000;display:none;align-items:center;justify-content:center;pointer-events:none}
+#flashImg.on{display:flex}#flashImg img{max-width:100%;max-height:100%;object-fit:contain}
+.flash-btn{width:100%;margin:0 0 10px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#3b2a6b;color:#fff;font-weight:700}

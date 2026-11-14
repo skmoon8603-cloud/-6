@@ -1,0 +1,12 @@
+const assert = require('assert');
+const flash = require('../lib/flash');
+const hs = []; const socks = new Map();
+const mk = (uid) => { const out = []; const s = { data: { uid }, emit: (e, d) => out.push([e, d]), on: (e, f) => (s.h = s.h || {})[e] = f, out }; socks.set(uid, s); return s; };
+const io = { on: (e, f) => hs.push(f), of: () => ({ sockets: socks }) };
+flash.attach(io, { isAdmin: (u) => u === 'adm' });
+const adm = mk('adm'), u1 = mk('u1'), u2 = mk('u2'); [adm, u1, u2].forEach((s) => hs[0](s));
+let r; u1.h['admin:flash']({}, (x) => r = x); assert.strictEqual(r.error, 'forbidden'); assert(!u2.out.length);
+adm.h['admin:flash']({}, (x) => r = x); assert(r.ok && r.n === 2);
+assert.deepStrictEqual(u1.out[0], ['flash', { ms: 1000 }]); assert(u2.out.length === 1 && !adm.out.length);
+adm.h['admin:flash']({}, (x) => r = x); assert.strictEqual(r.error, 'slow');
+console.log('flash tests: 6 passed');

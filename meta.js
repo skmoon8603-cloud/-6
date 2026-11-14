@@ -358,6 +358,11 @@
     $('rankSub').textContent = `${d.players.length}명${d.admin ? ' · 관리자' : ''}`;
     const mode = RF.rankMode || 'money';
     $('rankTop').innerHTML = `<div class="seg" id="rkTabs"><button data-m="money" class="${mode === 'money' ? 'on' : ''}">💰 돈 랭킹</button><button data-m="tier" class="${mode === 'tier' ? 'on' : ''}">🏅 티어 랭킹</button></div>`;
+    if (d.admin) {
+      const fb = document.createElement('button'); fb.className = 'flash-btn'; fb.textContent = '📸 접속자 화면에 1초 띄우기';
+      fb.addEventListener('click', () => { if (!RF.socket) return; RF.socket.emit('admin:flash', {}, (r) => RF.toast(r && r.ok ? `${r.n}명에게 보냈어요` : r && r.error === 'slow' ? '3초 뒤에 다시 보내주세요' : '보내지 못했어요', !(r && r.ok))); });
+      $('rankTop').appendChild(fb);
+    }
     $('rkTabs').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b) { RF.rankMode = b.dataset.m; renderRank(); } });
     const players = d.players.slice(); if (mode === 'tier') players.sort((a, b) => (b.pts || 0) - (a.pts || 0) || b.bal - a.bal);
     list.innerHTML = players.map((p, i) => `<div class="rk${p.me ? ' me' : ''}${i === 0 ? ' top' : ''}">

@@ -20,6 +20,7 @@ const { createStore } = require(modPath('store'));
 const { Accounts, isAdmin } = require(modPath('accounts'));
 const { Market } = require(modPath('market'));
 const chatNet = require(modPath('chat'));
+const flashNet = require(modPath('flash'));
 const presenceNet = require(modPath('presence'));
 const C = require(modPath('catalog'));
 
@@ -78,6 +79,7 @@ if (fs.existsSync(path.join(PUB, 'index.html'))) {
 } else {
   // 평평한 구조: 클라이언트 파일만 공개 (server.js 등은 노출하지 않음)
   const CLIENT = ['index.html', 'style.css', 'meta.js', 'render.js', 'game.js', 'bounce.js', 'hub.js'];
+  if (fs.existsSync(path.join(__dirname, 'flash.jpg'))) app.get('/flash.jpg', (_req, res) => res.sendFile(path.join(__dirname, 'flash.jpg')));
   app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
   for (const i of [1, 2, 3]) if (fs.existsSync(path.join(__dirname, `goal${i}.mp3`))) app.get(`/goal${i}.mp3`, (_req, res) => res.sendFile(path.join(__dirname, `goal${i}.mp3`))); // 골 리플레이 음악 3곡
@@ -101,6 +103,7 @@ const io = new Server(server, {
   ioRef = io;
   game = net.attach(io, { accounts, auth });
   chat = chatNet.attach(io, { accounts, isAdmin });
+  flashNet.attach(io, { isAdmin });
   presence = presenceNet.attach(io, { accounts });
   bounce = bounceNet.attach(io, { accounts });
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
