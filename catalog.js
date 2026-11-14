@@ -12,7 +12,9 @@ const RARITIES = [
   { key: 'legend', name: '전설', rate: 6,  color: '#ffb81f', base: 81, count: 10 },
   { key: 'myth',   name: '신화', rate: 2,  color: '#ff3d6e', base: 88, count: 6 },
   { key: 'trans',  name: '초월', rate: 1,  color: '#5cf2ff', base: 96, count: 1, hidden: true }, // 추가 1% (총합 101 기준으로 정규화)
+  { key: 'hid',    name: '히든', rate: 0,  color: '#ff5cf2', base: 77, count: 0, hidden: true }, // 뽑기 불가: 관리자를 이기면 받는 특별 캐릭터
 ];
+const HIDDEN_ID = 'X77';
 const RARITY_BY_KEY = Object.fromEntries(RARITIES.map((r) => [r.key, r]));
 
 // 편성 슬롯 (6인제): 골키퍼1 수비수2 미드필더1 공격수2
@@ -156,6 +158,9 @@ function buildCatalog() {
       list.push(item);
     }
   });
+  // 특별 캐릭터 '문서경': 모든 능력치 77, 뽑기에서는 나오지 않고 관리자(운영자)를 이기면 지급
+  const hst = { spd: 77, sht: 77, pas: 77, def: 77, sta: 77, dri: 77, gk: 77 };
+  list.push({ id: HIDDEN_ID, name: '문서경', pos: 'MF', rarity: 'hid', number: 77, stats: hst, ovr: 77, ovrBy: ovrBy(hst), starter: false, hidden: true, c1: '#ff5cf2', c2: '#fff0fd' });
   return list;
 }
 
@@ -242,6 +247,6 @@ function botLineup(rand01 = Math.random) {
 }
 
 module.exports = {
-  RARITIES, RARITY_BY_KEY, SLOTS, POS_NAME, CATALOG, BY_ID, MAX_DUP_LEVEL,
+  RARITIES, RARITY_BY_KEY, HIDDEN_ID, SLOTS, POS_NAME, CATALOG, BY_ID, MAX_DUP_LEVEL,
   rollRarity, pullOne, secretFor, publicPlayer, ovrOf, POSS, dupLevel, statsFor, defaultLineup, validateLineup, botLineup, secureRand01,
 };

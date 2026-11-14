@@ -1,0 +1,27 @@
+process.env.DEV_LOGIN = '1'; process.env.SESSION_SECRET = 'test-secret';
+const assert = require('assert');
+const C = require('../lib/catalog');
+const { MemoryStore } = require('../lib/store');
+const { Accounts, isAdmin } = require('../lib/accounts');
+const { Market } = require('../lib/market');
+let n = 0; const ok = (c, m) => { assert(c, m); n++; };
+const p = C.BY_ID[C.HIDDEN_ID];
+ok(p && p.name === '문서경' && p.rarity === 'hid' && p.hidden, '문서경 존재');
+ok(Object.values(p.stats).every((v) => v === 77), '모든 능력치 77');
+ok(C.RARITY_BY_KEY.hid.name === '히든', '등급 히든');
+let got = 0; for (let i = 0; i < 20000; i++) if (C.pullOne().id === C.HIDDEN_ID) got++;
+ok(got === 0, '뽑기로는 안 나옴');
+ok(C.publicPlayer(p).name === '?', '공개 카탈로그에서는 가려짐');
+(async () => {
+  const s = new MemoryStore(), a = new Accounts(s);
+  const boss = (await a.register('skmoon', 'secret1')).acct.id, u = (await a.register('user1', 'secret1')).acct.id;
+  ok(isAdmin(boss), '관리자');
+  ok((await a.grantHidden(u, u)) === null && (await a.grantHidden(boss, u)) === null, '관리자가 진 경우만');
+  let r = await a.grantHidden(u, boss);
+  ok(r.first && r.acct.inv[C.HIDDEN_ID] === 1 && r.acct.secret[C.HIDDEN_ID], '관리자를 이기면 지급');
+  r = await a.grantHidden(u, boss);
+  ok(!r.first && r.acct.inv[C.HIDDEN_ID] === 1, '중복 지급 없음');
+  const m = new Market(s, {});
+  ok(!(await m.quick(u, C.HIDDEN_ID)).ok, '판매 불가');
+  console.log(`hidden tests: ${n} passed`);
+})().catch((e) => { console.error(e); process.exit(1); });

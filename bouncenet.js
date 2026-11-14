@@ -74,7 +74,9 @@ function attach(io, { accounts, autoloop = true }) {
     } catch (e) { log(e); }
     let rank = null;
     try { if (!room.cpu && winner >= 0 && room.players.length === 2 && room.players[winner] && room.players[1 - winner]) { rank = await accounts.ranked(room.players[winner].uid, room.players[1 - winner].uid); if (rank) for (const p of room.players) if (rank[p.uid]) emit(p, 'account', rank[p.uid].acct); } } catch (e) { log(e); }
-    room.players.forEach((p, side) => emit(p, 'bz:end', { tier: rank && rank[p.uid] ? { before: rank[p.uid].before, after: rank[p.uid].after, delta: rank[p.uid].delta } : null, winner, you: side, score: g.score.slice(), forfeit, reward: side === 0 ? reward : null, stake: settle && settle.stake ? settle.stake : 0, pay: settle && settle.stake ? (settle.winnerId ? (settle.winnerId === room.players[side].uid ? settle.stake : -settle.stake) : 0) : 0 }));
+    let hid = null;
+    try { if (!room.cpu && winner >= 0 && room.players.length === 2 && room.players[winner] && room.players[1 - winner]) { hid = await accounts.grantHidden(room.players[winner].uid, room.players[1 - winner].uid); if (hid) emit(room.players[winner], 'account', hid.acct); } } catch (e) { log(e); }
+    room.players.forEach((p, side) => emit(p, 'bz:end', { hidden: hid && side === winner ? { id: require('./catalog').HIDDEN_ID, first: hid.first } : null, tier: rank && rank[p.uid] ? { before: rank[p.uid].before, after: rank[p.uid].after, delta: rank[p.uid].delta } : null, winner, you: side, score: g.score.slice(), forfeit, reward: side === 0 ? reward : null, stake: settle && settle.stake ? settle.stake : 0, pay: settle && settle.stake ? (settle.winnerId ? (settle.winnerId === room.players[side].uid ? settle.stake : -settle.stake) : 0) : 0 }));
   }
 
   function step() {

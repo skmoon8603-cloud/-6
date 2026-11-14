@@ -32,6 +32,8 @@
   // ── 티어 ──
   const tierName = (i) => (RF.cat && RF.cat.tiers && RF.cat.tiers[i] ? RF.cat.tiers[i].name : '');
   const tierIdx = (pts) => Math.min(((RF.cat && RF.cat.tiers && RF.cat.tiers.length) || 12) - 1, Math.floor((pts || 0) / ((RF.cat && RF.cat.tierStep) || 3)));
+  /** 관리자 승리 보너스(문서경) 안내 */
+  RF.hiddenNote = (h) => (h && h.first ? '🌟 히든 캐릭터 "문서경"을 획득했어요! 보관함에서 확인하세요' : h ? '🌟 관리자를 이겼어요! (문서경은 이미 보유 중)' : null);
   RF.tierChip = (t) => (t ? `<span class="tier" style="--tc:${t.color}">${esc(t.name)}</span>` : '');
   /** 대결 결과의 티어 변화 문장 { text, up, down } */
   RF.tierNote = (t) => {
@@ -416,7 +418,7 @@
   // ───────────── 뽑기 ─────────────
   let busy = false;
   function renderGacha() {
-    $('rates').innerHTML = RAR().map((r) => `<div class="rate" style="--rc:${r.color}"><i class="dot"></i><span style="width:34px">${r.name}</span><div class="bar2"><span style="width:${r.rate}%"></span></div><b>${r.rate}%</b></div>`).join('');
+    $('rates').innerHTML = RAR().filter((r) => r.rate > 0).map((r) => `<div class="rate" style="--rc:${r.color}"><i class="dot"></i><span style="width:34px">${r.name}</span><div class="bar2"><span style="width:${r.rate}%"></span></div><b>${r.rate}%</b></div>`).join('');
     $('pullStat').textContent = `누적 뽑기 ${S.pulls}회 · 1회 ${won(COST())} · CPU 연습 경기 승리 시 +${won((RF.cat && RF.cat.winReward) || 3000)}`;
     $('pull1').textContent = `1회 뽑기 · ${won(COST())}`;
     $('pull10').textContent = `10회 연속 · ${won(COST() * 10)}`;
@@ -485,7 +487,7 @@
     const note = `<div class="rv-note" style="margin-top:14px;font-weight:800">${r.isNew ? '🎉 새 선수 획득!' : `중복! 강화 Lv.${r.level + 1}${r.level >= RF.cat.maxDup ? ' (MAX)' : ' (+2% 능력치)'}`}</div>`;
     const wrap = (cls, inner) => `<div class="rv-single ${cls}" style="--rc:${rc.color}"><div class="rtag">${rc.name}</div>${inner}${note}</div>`;
     const shake = () => { ov.classList.remove('quake'); void ov.offsetWidth; ov.classList.add('quake'); setTimeout(() => ov.classList.remove('quake'), 700); };
-    if (!['legend', 'myth', 'trans'].includes(p.rarity)) return { dur: 900, html: wrap('', card), start() { burst(rc.color, 40 + ({ rare: 18, hero: 36 }[p.rarity] || 0)); } };
+    if (!['legend', 'myth', 'trans', 'hid'].includes(p.rarity)) return { dur: 900, html: wrap('', card), start() { burst(rc.color, 40 + ({ rare: 18, hero: 36 }[p.rarity] || 0)); } };
     if (p.rarity === 'legend') return { dur: 2300, html: wrap('fx-legend', `<div class="spin3d">${card}</div><div class="rays"></div>`), start() { setTimeout(() => { flash(rc.color); burst(rc.color, 120); burst('#ffffff', 50); }, 1250); } };
     if (p.rarity === 'myth') {
       const ps = SHARDS.map((q, i) => { const a = (i / 6) * 6.283 + 0.6; return `<div class="shard" style="clip-path:polygon(${q[0]}% ${q[1]}%,${q[2]}% ${q[3]}%,${q[4]}% ${q[5]}%,${q[6]}% ${q[7]}%);--dx:${Math.round(Math.cos(a) * 260)}px;--dy:${Math.round(Math.sin(a) * 340)}px;--r:${(i % 2 ? 1 : -1) * (160 + i * 40)}deg;animation-delay:${(0.15 + i * 0.28).toFixed(2)}s">${card}</div>`; }).join('');
@@ -500,7 +502,7 @@
     const ov = $('reveal'), st = $('revealStage'); skip = false;
     st.innerHTML = ''; ov.classList.remove('hidden'); $('revealClose').classList.add('hidden'); $('revealSkip').classList.remove('hidden');
     const flash = (c) => { const f = document.createElement('div'); f.className = 'flash'; f.style.setProperty('--fc', c); ov.appendChild(f); setTimeout(() => f.remove(), 950); };
-    const power = { common: 0, rare: 18, hero: 36, legend: 70, myth: 120, trans: 220 };
+    const power = { common: 0, rare: 18, hero: 36, legend: 70, myth: 120, trans: 220, hid: 220 };
     const info = (r) => (r.isNew ? '' : '');
     flash(bestColor);
     if (results.length === 1) {

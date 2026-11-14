@@ -2,7 +2,7 @@
 :root{
   --bg:#0a1020; --bg2:#101a33; --panel:#141f3b; --panel2:#1a2848; --line:#27375f;
   --txt:#eaf1ff; --mut:#8fa0c8; --acc:#2cff8a; --acc2:#19c3ff; --danger:#ff4d6a; --gold:#ffc53d;
-  --r-common:#9aa7b8; --r-rare:#3fa9ff; --r-hero:#b65cff; --r-legend:#ffb81f; --r-myth:#ff3d6e; --r-trans:#5cf2ff;
+  --r-common:#9aa7b8; --r-rare:#3fa9ff; --r-hero:#b65cff; --r-legend:#ffb81f; --r-myth:#ff3d6e; --r-trans:#5cf2ff; --r-hid:#ff5cf2;
   --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
   --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
 }
@@ -567,3 +567,6 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 #flashImg{position:fixed;inset:0;z-index:99999;background:#000;display:none;align-items:center;justify-content:center;pointer-events:none}
 #flashImg.on{display:flex}#flashImg img{max-width:100%;max-height:100%;object-fit:contain}
 .flash-btn{width:100%;margin:0 0 10px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#3b2a6b;color:#fff;font-weight:700}
+
+.pcard.r-hid{--rc:var(--r-hid);border-color:transparent;background:linear-gradient(#14061a,#14061a) padding-box,conic-gradient(from var(--ang,0deg),#ff5cf2,#ffffff,#ffd45e,#5cf2ff,#ff5cf2) border-box;box-shadow:0 0 30px #ff5cf2aa,0 6px 16px #0006;animation:pulse 1.4s ease-in-out infinite}
+.res-tier.hid{background:linear-gradient(90deg,#ff5cf233,#5cf2ff33);color:#ffd6fb}

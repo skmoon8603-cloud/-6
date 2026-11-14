@@ -187,6 +187,16 @@ class Accounts {
     });
   }
 
+  /** 관리자를 이긴 사람에게 특별 캐릭터(문서경) 지급 — 이미 있으면 그대로. 결과 { first, acct } */
+  async grantHidden(winnerId, loserId) {
+    if (!winnerId || !loserId || winnerId === loserId || !isAdmin(loserId)) return null;
+    return this.store.txn([winnerId], (m) => {
+      const a = m[winnerId]; if (!a) return null;
+      const first = !(a.inv[C.HIDDEN_ID] > 0); if (first) a.inv[C.HIDDEN_ID] = 1;
+      return { first, acct: pub(a) };
+    });
+  }
+
   async reward(id, amount) {
     return this.store.txn([id], (m) => { const a = m[id]; if (!a) return null; a.bal = Math.min(MAX_BAL, a.bal + amount); return pub(a); });
   }

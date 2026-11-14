@@ -7,6 +7,7 @@
  * ※ '원'은 게임 안에서만 쓰는 가상 재화입니다.
  */
 const crypto = require('crypto');
+const K_HID = require('./catalog').HIDDEN_ID;
 const K = require('./const');
 const C = require('./catalog');
 const { Match } = require('./engine');
@@ -99,10 +100,13 @@ function attach(io, { accounts, auth, autoloop = true }) {
     // 사람끼리의 승부는 티어 점수 반영 (이기면 +1, 지면 -1)
     let rank = null;
     try { if (!room.practice && winner >= 0 && players.length === 2 && players[winner] && players[1 - winner]) rank = await accounts.ranked(players[winner].uid, players[1 - winner].uid); } catch (e) { log(e); }
+    let hid = null;
+    try { if (!room.practice && winner >= 0 && players.length === 2 && players[winner] && players[1 - winner]) hid = await accounts.grantHidden(players[winner].uid, players[1 - winner].uid); } catch (e) { log(e); }
     players.forEach((p, side) => {
       p.ready = false;
       const d = { ...room.lastResult, you: side };
       if (rank && rank[p.uid]) { const t = rank[p.uid]; d.tier = { before: t.before, after: t.after, delta: t.delta }; accts[p.uid] = t.acct; }
+      if (hid && side === winner) { d.hidden = { id: K_HID, first: hid.first }; accts[p.uid] = hid.acct; }
       if (rewardAmt && side === 0 && accts[p.uid]) d.reward = { amount: rewardAmt, bal: accts[p.uid].bal };
       if (settle && settle.stake) { d.stake = settle.stake; d.pay = settle.winnerId ? (settle.winnerId === p.uid ? settle.stake : -settle.stake) : 0; }
       emit(p, 'match:end', d);
