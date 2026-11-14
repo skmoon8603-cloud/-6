@@ -20,6 +20,7 @@ const { createStore } = require(modPath('store'));
 const { Accounts, isAdmin } = require(modPath('accounts'));
 const { Market } = require(modPath('market'));
 const chatNet = require(modPath('chat'));
+const presenceNet = require(modPath('presence'));
 const C = require(modPath('catalog'));
 
 const PORT = process.env.PORT || 3000;
@@ -37,6 +38,7 @@ const store = createStore();
 const accounts = new Accounts(store);
 const market = new Market(store);
 let chat = { sys() {} };
+let presence = { stop() {} };
 let ioRef = null;
 const pushAcct = (uid, acct) => { if (!ioRef || !acct) return; for (const [, s] of ioRef.of('/').sockets) if (s.data && s.data.uid === uid) s.emit('account', acct); };
 const onMarket = (op, uid, out) => {
@@ -99,10 +101,11 @@ const io = new Server(server, {
   ioRef = io;
   game = net.attach(io, { accounts, auth });
   chat = chatNet.attach(io, { accounts, isAdmin });
+  presence = presenceNet.attach(io, { accounts });
   bounce = bounceNet.attach(io, { accounts });
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
 })().catch((e) => { console.error('시작 실패', e); process.exit(1); });
 
-function shutdown() { game.stop(); bounce.stop(); io.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); }
+function shutdown() { game.stop(); bounce.stop(); presence.stop(); io.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

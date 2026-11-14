@@ -130,12 +130,16 @@
 
     <!-- 채팅 -->
     <section id="scr-chat" class="screen">
-      <div class="ch-head"><div class="sec-title" style="margin:0">💬 전체 채팅</div><div id="chOnline" class="ch-on"><i></i><span>0명</span></div></div>
-      <div id="chList" class="ch-list"></div>
-      <form id="chForm" class="ch-form" autocomplete="off">
-        <input id="chInp" class="inp" maxlength="200" placeholder="메시지를 입력하세요" enterkeyhint="send">
-        <button class="btn primary" id="chSend" type="submit">전송</button>
-      </form>
+      <div class="ch-head"><div class="sec-title" style="margin:0">💬 소셜</div><div id="chOnline" class="ch-on"><i></i><span>0명</span></div></div>
+      <div class="seg" id="chTabs"><button data-t="chat" class="on">💬 채팅</button><button data-t="people">👥 접속자 · 대결 신청 <em id="pvCnt" class="cnt">0</em></button></div>
+      <div id="chPane" class="ch-pane">
+        <div id="chList" class="ch-list"></div>
+        <form id="chForm" class="ch-form" autocomplete="off">
+          <input id="chInp" class="inp" maxlength="200" placeholder="메시지를 입력하세요" enterkeyhint="send">
+          <button class="btn primary" id="chSend" type="submit">전송</button>
+        </form>
+      </div>
+      <div id="pvPane" class="pv-pane hidden"></div>
     </section>
 
     <!-- 편성 -->
@@ -238,6 +242,7 @@
   </div>
 
   <div id="rotate" class="rotate hidden"><div class="rot-ico">📱</div><div>화면을 <b>가로</b>로 돌려주세요</div><small>가로 모드에서 더 넓게 플레이할 수 있어요</small></div>
+  <div id="invites" class="invites"></div>
   <div id="toast" class="toast"></div>
 </div>
 

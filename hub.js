@@ -187,4 +187,72 @@
     inp.focus();
   });
   $('chList').addEventListener('click', (e) => { const b = e.target.closest('[data-del]'); if (b && RF.socket) RF.socket.emit('chat:del', { id: +b.dataset.del }); });
+
+  // ───────────── 접속자 목록 + 대결 신청 ─────────────
+  const PV = { list: [], me: null, tab: 'chat', sent: {}, hosting: null };
+  const ST = { idle: ['대기 중', 'idle'], soccer: ['⚽ 경기·방 안', 'busy'], bounce: ['🏓 원 바운스 중', 'busy'] };
+  const PVERR = { self: '자기 자신에게는 보낼 수 없어요', offline: '상대가 접속을 종료했어요', busy: '상대가 지금 경기 중이에요', me_busy: '내가 경기/방 안에 있어요. 먼저 나와 주세요', slow: '잠시 후에 다시 신청해 주세요', bad_game: '잘못된 요청이에요' };
+  function pvRender() {
+    const el = $('pvPane'); if (!el) return;
+    $('pvCnt').textContent = PV.list.length;
+    const others = PV.list.filter((x) => x.uid !== PV.me), meRow = PV.list.find((x) => x.uid === PV.me);
+    const idle = others.filter((x) => x.st === 'idle').length;
+    el.innerHTML = `<p class="tiny" style="margin-top:0">지금 접속 중인 ${PV.list.length}명 · 대기 중 ${idle}명. 대기 중인 사람에게 대결을 신청할 수 있어요. 상대가 수락하면 방이 자동으로 만들어져요.</p>
+      ${meRow ? `<div class="pv-row me"><div class="cav" style="--h:${hue(meRow.nick)}">${esc(meRow.nick.slice(0, 1).toUpperCase())}</div><div class="pv-nm"><div class="pv-n"><b>${esc(meRow.nick)}</b><em>나</em></div><small class="st ${ST[meRow.st][1]}">${ST[meRow.st][0]}</small></div></div>` : ''}
+      ${others.map((x) => { const wait = PV.sent[x.uid] && Date.now() < PV.sent[x.uid]; const can = x.st === 'idle' && !wait && !(meRow && meRow.st !== 'idle');
+        return `<div class="pv-row"><div class="cav" style="--h:${hue(x.nick)}">${esc(x.nick.slice(0, 1).toUpperCase())}</div><div class="pv-nm"><b>${esc(x.nick)}</b><small class="st ${ST[x.st][1]}">${wait ? '신청 보냄… 응답 대기' : ST[x.st][0]}</small></div>
+        <button class="pv-btn s" data-inv="${esc(x.uid)}" data-g="soccer" ${can ? '' : 'disabled'}>⚽ 축구</button><button class="pv-btn b" data-inv="${esc(x.uid)}" data-g="bounce" ${can ? '' : 'disabled'}>🏓 원바</button></div>`; }).join('') || '<p class="tiny center">지금은 나 혼자예요. 친구를 불러보세요!</p>'}`;
+  }
+  async function pvLoad() { const s = RF.socket; if (!s || !s.connected) return; s.emit('pv:list', {}, (r) => { if (r) { PV.list = r.list || []; PV.me = r.me; pvRender(); } }); }
+  $('pvPane').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-inv]'); if (!b || b.disabled) return;
+    const to = b.dataset.inv, game = b.dataset.g, s = RF.socket; if (!s) return;
+    s.emit('pv:invite', { to, game }, (r) => {
+      if (!r || !r.ok) { RF.toast(PVERR[r && r.error] || '신청하지 못했어요', true); return; }
+      PV.sent[to] = Date.now() + 30000; sfx('tap'); RF.toast('대결 신청을 보냈어요! 상대의 응답을 기다려요'); pvRender();
+      setTimeout(() => { if (RF.screen === 'chat') pvRender(); }, 30500);
+    });
+  });
+  $('chTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-t]'); if (!b) return; PV.tab = b.dataset.t; sfx('tap');
+    document.querySelectorAll('#chTabs button').forEach((x) => x.classList.toggle('on', x === b));
+    $('chPane').classList.toggle('hidden', PV.tab !== 'chat'); $('pvPane').classList.toggle('hidden', PV.tab !== 'people');
+    if (PV.tab === 'people') pvLoad(); else { const l = $('chList'); l.scrollTop = l.scrollHeight; }
+  });
+
+  // 받은 신청 팝업 (어느 화면에서든 위에 뜬다)
+  function inviteCard(d) {
+    const el = document.createElement('div'); el.className = 'inv'; el.dataset.id = d.id;
+    el.innerHTML = `<div class="inv-t"><b>${esc(d.from)}</b> 님이 <b>${esc(d.label)}</b> 대결을 신청했어요!</div><div class="inv-b"><button class="btn primary" data-a="1">수락</button><button class="btn" data-a="0">거절</button></div><i class="inv-bar"></i>`;
+    el.querySelector('.inv-bar').style.animationDuration = (d.ttl || 30000) + 'ms';
+    const done = () => { el.remove(); };
+    el.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-a]'); if (!a || !RF.socket) return;
+      RF.socket.emit('pv:respond', { id: d.id, accept: a.dataset.a === '1' }, (r) => {
+        if (a.dataset.a === '1') { if (r && r.ok) RF.toast('수락했어요! 방을 만드는 중…'); else RF.toast(r && r.error === 'me_busy' ? '경기/방 안에서는 수락할 수 없어요' : '신청이 이미 끝났어요', true); }
+      });
+      done();
+    });
+    $('invites').appendChild(el); sfx('legend');
+    setTimeout(done, (d.ttl || 30000) + 500);
+  }
+  let pvHooked = null;
+  function pvHook() {
+    const s = RF.socket; if (!s || pvHooked === s) return; pvHooked = s;
+    s.on('pv:changed', () => { clearTimeout(PV.ct); PV.ct = setTimeout(() => { if (RF.screen === 'chat' && PV.tab === 'people') pvLoad(); else if (RF.socket && RF.socket.connected) RF.socket.emit('pv:list', {}, (r) => { if (r) { PV.list = r.list; PV.me = r.me; $('pvCnt').textContent = PV.list.length; } }); }, 300); });
+    s.on('pv:invited', inviteCard);
+    s.on('pv:dismiss', (d) => { document.querySelectorAll(`#invites .inv[data-id="${d.id}"]`).forEach((e) => e.remove()); });
+    s.on('pv:result', (d) => { const m = { declined: `${d.nick || '상대'}님이 거절했어요`, expired: '신청이 만료됐어요', busy: '상대가 지금 경기 중이에요', gone: '상대가 나갔어요', failed: '방 입장에 실패했어요' }[d.res]; if (m) RF.toast(m, true); PV.sent = {}; if (RF.screen === 'chat') pvRender(); });
+    // 내 신청이 수락됨 → 내가 방을 만들고, 코드를 서버에 알려 상대가 자동으로 입장하게 한다
+    s.on('pv:host', (d) => {
+      RF.toast(`${d.nick}님이 수락했어요! 방을 만드는 중…`); PV.sent = {};
+      const give = (code) => { if (code) s.emit('pv:code', { id: d.id, code }); else s.emit('pv:fail', { id: d.id }); };
+      if (d.game === 'bounce' && RF.createBounce) RF.createBounce(give); else if (RF.createSoccerRoom) RF.createSoccerRoom(give);
+    });
+    s.on('pv:join', (d) => { RF.toast(`${d.from}님의 방에 입장해요!`); if (d.game === 'bounce' && RF.joinBounce) RF.joinBounce(d.code); else if (RF.joinSoccer) RF.joinSoccer(d.code); });
+    if (s.connected) pvLoad();
+    s.on('connect', pvLoad);
+  }
+  setInterval(pvHook, 700);
+  const _hubChat = RF.hubChat; RF.hubChat = () => { _hubChat(); if (PV.tab === 'people') pvLoad(); };
 })();

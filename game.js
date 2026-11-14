@@ -86,10 +86,13 @@
     } catch (e) { /* 지원 안 함 */ }
   }
 
-  $('btnCreate').addEventListener('click', () => {
+  function createRoom(cb) {
     if (needConn()) return; RF.sfx('tap');
-    socket.emit('room:create', RF.teamPayload(), (r) => { if (r && r.ok) { RF.toast('방이 만들어졌어요! 코드를 친구에게 알려주세요'); enter(r.code); } else RF.toast(ERR[r && r.err] || '방 생성 실패', true); });
-  });
+    socket.emit('room:create', RF.teamPayload(), (r) => { if (r && r.ok) { RF.toast('방이 만들어졌어요! 코드를 친구에게 알려주세요'); enter(r.code); if (cb) cb(r.code); } else { RF.toast(ERR[r && r.err] || '방 생성 실패', true); if (cb) cb(null); } });
+  }
+  $('btnCreate').addEventListener('click', () => createRoom());
+  RF.createSoccerRoom = createRoom; // 대결 신청이 수락되면 호스트 쪽에서 호출
+  RF.joinSoccer = (code) => join(code);
   function join(code) {
     if (needConn()) return;
     code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

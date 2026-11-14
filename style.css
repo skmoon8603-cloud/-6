@@ -524,3 +524,29 @@ input{font:inherit;color:inherit}
 @keyframes shockR{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(22)}}
 /* 입력칸은 항상 글자 입력/선택이 가능해야 한다 (body의 user-select:none 때문에 일부 폰에서 한글 입력이 깨짐) */
 input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+
+/* ───── 접속자 / 대결 신청 ───── */
+#scr-chat.active{display:flex;flex-direction:column}
+.ch-pane{flex:1;min-height:0;display:flex;flex-direction:column}
+.pv-pane{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.cnt{font-style:normal;margin-left:6px;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--acc);color:#04140b}
+.pv-row{display:flex;align-items:center;gap:10px;padding:10px;margin-bottom:8px;border-radius:16px;background:linear-gradient(160deg,#16224aaa,#0b1330cc);border:1px solid #ffffff14}
+.pv-row.me{opacity:.85;border-color:#2cff8a44}
+.pv-nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.pv-nm b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.pv-nm em{font-style:normal;font-size:10px;padding:1px 6px;border-radius:6px;background:var(--acc);color:#04140b;margin-left:4px;font-weight:800}
+.pv-nm .st{font-size:11px;color:var(--mut);display:flex;align-items:center;gap:5px}
+.pv-nm .st::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.pv-nm .st.idle{color:var(--acc)}.pv-nm .st.idle::before{background:var(--acc);box-shadow:0 0 8px var(--acc)}
+.pv-nm .st.busy{color:#ffb05c}.pv-nm .st.busy::before{background:#ff9b3d;box-shadow:0 0 8px #ff9b3d}
+.pv-btn{flex:none;height:38px;padding:0 12px;border-radius:12px;font-weight:800;font-size:12.5px;color:#fff;border:1px solid #ffffff22}
+.pv-btn.s{background:linear-gradient(180deg,#12d981,#0a7d52)}.pv-btn.b{background:linear-gradient(180deg,#ff7a3d,#c4352a)}
+.pv-btn:disabled{opacity:.35;filter:grayscale(.7)}
+.invites{position:fixed;left:0;right:0;top:calc(10px + var(--safe-t));z-index:300;display:grid;gap:8px;padding:0 12px;pointer-events:none;justify-items:center}
+.inv{pointer-events:auto;position:relative;overflow:hidden;width:100%;max-width:420px;padding:12px 14px 16px;border-radius:18px;background:linear-gradient(160deg,#1b2d66f2,#0b1330f2);border:1px solid #2cff8a77;box-shadow:0 14px 40px #000c,0 0 24px #2cff8a33;animation:invIn .35s cubic-bezier(.2,1.3,.4,1)}
+@keyframes invIn{from{transform:translateY(-120%);opacity:0}}
+.inv-t{font-size:14px;line-height:1.4;margin-bottom:10px}.inv-t b{color:var(--acc)}
+.inv-b{display:flex;gap:8px}.inv-b .btn{flex:1;height:42px;font-size:14px}
+.inv-bar{position:absolute;left:0;bottom:0;height:4px;width:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));transform-origin:left;animation:invBar linear forwards}
+@keyframes invBar{to{transform:scaleX(0)}}
+.pv-n{display:flex;align-items:center;gap:4px;min-width:0}

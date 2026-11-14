@@ -1,0 +1,35 @@
+'use strict';
+const assert = require('assert');
+const { MemoryStore } = require('../lib/store');
+const { Accounts } = require('../lib/accounts');
+const presence = require('../lib/presence');
+let n = 0; const ok = (m) => { n++; };
+(async () => {
+  const store = new MemoryStore(), acc = new Accounts(store);
+  for (const u of ['amy', 'ben', 'cat']) await acc.register(u, 'secret1');
+  const socks = new Map(); let hnd; const bcast = [];
+  const io = { of: () => ({ sockets: socks }), on: (e, f) => { hnd = f; }, emit: (e, d) => bcast.push([e, d]) };
+  const pr = presence.attach(io, { accounts: acc });
+  let sid = 0;
+  const mk = async (uid) => { const h = {}, got = []; const s = { id: 's' + (++sid), data: { uid }, on: (e, f) => { h[e] = f; }, emit: (e, d) => got.push([e, d]), h, got, last: (ev) => { const r = got.filter((x) => x[0] === ev); return r.length ? r[r.length - 1][1] : null; } }; socks.set(s.id, s); hnd(s); await new Promise((r) => setTimeout(r, 20)); return s; };
+  const call = (s, ev, p) => new Promise((r) => { s.h[ev](p, r); setTimeout(() => r(undefined), 50); });
+  const A = await mk('u-amy'), B = await mk('u-ben'), C = await mk('u-cat');
+
+  let l = (await call(A, 'pv:list')).list; assert.strictEqual(l.length, 3); assert(l.every((x) => x.st === 'idle')); ok('접속자 3명, 모두 대기 중');
+  assert.strictEqual((await call(A, 'pv:invite', { to: 'u-amy', game: 'soccer' })).error, 'self');
+  assert.strictEqual((await call(A, 'pv:invite', { to: 'u-nobody', game: 'soccer' })).error, 'offline');
+  assert.strictEqual((await call(A, 'pv:invite', { to: 'u-ben', game: 'chess' })).error, 'bad_game'); ok('자기 자신/없는 사람/잘못된 게임 거절');
+  C.data.code = 'ABC123'; assert.strictEqual((await call(A, 'pv:invite', { to: 'u-cat', game: 'soccer' })).error, 'busy'); assert.strictEqual((await call(A, 'pv:list')).list.find((x) => x.uid === 'u-cat').st, 'soccer'); ok('경기 중인 사람에게는 신청 불가, 상태 표시'); C.data.code = null;
+  const r1 = await call(A, 'pv:invite', { to: 'u-ben', game: 'soccer' }); assert(r1.ok); const inv = B.last('pv:invited'); assert(inv && inv.from === 'amy' && inv.game === 'soccer'); ok('신청이 상대에게 전달됨');
+  assert.strictEqual((await call(A, 'pv:invite', { to: 'u-cat', game: 'bounce' })).error, 'slow'); ok('도배 방지(4초)');
+  assert.strictEqual((await call(C, 'pv:respond', { id: inv.id, accept: true })).error, 'gone'); ok('제3자는 수락 불가');
+  assert((await call(B, 'pv:respond', { id: inv.id, accept: true })).ok); assert(A.last('pv:host').game === 'soccer'); ok('수락하면 신청자에게 방 만들기 지시');
+  C.h['pv:code']({ id: inv.id, code: 'ZZZZZZ' }); assert(!B.last('pv:join')); ok('신청자가 아닌 사람은 코드 전달 불가');
+  A.h['pv:code']({ id: inv.id, code: 'bad!' }); assert(!B.last('pv:join')); ok('잘못된 코드 형식 거절');
+  A.h['pv:code']({ id: inv.id, code: 'abc234' }); const j = B.last('pv:join'); assert(j && j.code === 'ABC234' && j.game === 'soccer' && j.from === 'amy'); assert(!C.last('pv:join')); ok('방 코드는 수락한 사람에게만 전달');
+  A.h['pv:code']({ id: inv.id, code: 'ABC234' }); assert.strictEqual(B.got.filter((x) => x[0] === 'pv:join').length, 1); ok('같은 신청은 한 번만 처리');
+  A.data.invAt = 0; const r2 = await call(A, 'pv:invite', { to: 'u-cat', game: 'bounce' }); assert(r2.ok); await call(C, 'pv:respond', { id: C.last('pv:invited').id, accept: false });
+  assert(A.last('pv:result').res === 'declined'); ok('거절하면 신청자에게 알림');
+  A.data.invAt = 0; await call(A, 'pv:invite', { to: 'u-ben', game: 'bounce' }); B.data.bzCode = 'B123456'; assert.strictEqual((await call(B, 'pv:respond', { id: B.last('pv:invited').id, accept: true })).error, 'me_busy'); ok('수락하는 순간 이미 경기 중이면 수락 불가'); B.data.bzCode = null;
+  pr.stop(); console.log(`접속자/대결 신청 통과: ${n}개`); process.exit(0);
+})().catch((e) => { console.error('실패', e); process.exit(1); });

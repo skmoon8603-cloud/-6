@@ -144,13 +144,13 @@
     s.on('disconnect', () => { if (inGame) { inGame = false; RF.toast && RF.toast('연결이 끊겨 경기가 종료됐어요', true); exit(true); } });
   }
 
-  function go(ev, code) {
+  function go(ev, code, cb) {
     const s = sock(); if (!s) return RF.toast && RF.toast('서버에 연결 중이에요. 잠시 후 다시!', true);
     if (ev === 'bz:join' && String(code || '').length < 6) return RF.toast && RF.toast('방 코드를 입력해 주세요', true);
     bind(s); lastMode = ev; sfx('tap');
     s.emit(ev, ev === 'bz:join' ? { code } : ev === 'bz:create' ? { stake } : {}, (r) => {
-      if (!r || !r.ok) return RF.toast && RF.toast(r && r.err === 'not_enough' ? `잔액이 부족해요 (판돈 ${won(r.stake || stake)})` : ERR[r && r.err] || '시작할 수 없어요', true);
-      if (ev === 'bz:create') { $('bMenu').classList.add('hidden'); $('bWaitCode').textContent = r.code; $('bWaitStake').textContent = r.stake ? `💰 판돈 ${won(r.stake)} (이기면 ${won(r.stake * 2)})` : '판돈 없음'; $('bWait').classList.remove('hidden'); }
+      if (!r || !r.ok) { if (cb) cb(null); } if (!r || !r.ok) return RF.toast && RF.toast(r && r.err === 'not_enough' ? `잔액이 부족해요 (판돈 ${won(r.stake || stake)})` : ERR[r && r.err] || '시작할 수 없어요', true);
+      if (ev === 'bz:create') { $('bMenu').classList.add('hidden'); $('bWaitCode').textContent = r.code; $('bWaitStake').textContent = r.stake ? `💰 판돈 ${won(r.stake)} (이기면 ${won(r.stake * 2)})` : '판돈 없음'; $('bWait').classList.remove('hidden'); if (cb) cb(r.code); }
     });
   }
   function leave() { const s = sock(); if (s) s.emit('bz:leave'); }
@@ -272,6 +272,7 @@
 
   RF.openBounce = open;
   RF.joinBounce = (code) => { open(); join(code); };
+  RF.createBounce = (cb) => { open(); stake = 0; go('bz:create', null, cb); }; // 대결 신청 수락 시 (판돈 없음)
   const bind0 = () => { const b = $('btnBounce'); if (b) b.addEventListener('click', () => { sfx('tap'); open(); }); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind0); else bind0();
 })();

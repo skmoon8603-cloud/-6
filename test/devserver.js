@@ -30,6 +30,7 @@ ioRef = io;
 const game = net.attach(io, { accounts, auth });
 const bounceGame = require('../lib/bouncenet').attach(io, { accounts });
 const socks = new Map();
+const presenceGame = require('../lib/presence').attach(io, { accounts });
 const chatGame = require('../lib/chat').attach(io, { accounts, isAdmin: require('../lib/accounts').isAdmin });
 
 const SHIM = `(function(){
