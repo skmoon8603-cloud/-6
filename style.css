@@ -592,3 +592,6 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .nick-row{display:flex;gap:6px;align-items:center}.nick-row .prof-name{flex:1;min-width:0}
 .nick-btn{flex:none;padding:5px 9px;border-radius:10px;border:1px solid #ffffff33;background:#ffffff14;color:#fff;font-size:11px;font-weight:800}
 #nav button{font-size:9.5px}
+
+a.stock-banner{text-decoration:none}
+.rpg-banner{background:linear-gradient(120deg,#3b1d6e,#7a2a4e)}
