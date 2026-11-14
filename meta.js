@@ -455,6 +455,24 @@
   }
   RF.burst = burst;
 
+
+  // ───────────── 고등급 카드 등장 연출 (전설: 회전 · 신화: 조각 합체 · 초월: 하늘에서 낙하) ─────────────
+  const SHARDS = [[0,0,55,0,42,40,0,38],[55,0,100,0,100,45,42,40],[0,38,42,40,58,70,0,72],[42,40,100,45,100,75,58,70],[0,72,58,70,45,100,0,100],[58,70,100,75,100,100,45,100]];
+  function fxCard(r, ov, flash) {
+    const p = RF.byId[r.id], rc = rarOf(p.rarity), card = RF.cardHTML(r.id, { isNew: r.isNew });
+    const note = `<div class="rv-note" style="margin-top:14px;font-weight:800">${r.isNew ? '🎉 새 선수 획득!' : `중복! 강화 Lv.${r.level + 1}${r.level >= RF.cat.maxDup ? ' (MAX)' : ' (+2% 능력치)'}`}</div>`;
+    const wrap = (cls, inner) => `<div class="rv-single ${cls}" style="--rc:${rc.color}"><div class="rtag">${rc.name}</div>${inner}${note}</div>`;
+    const shake = () => { ov.classList.remove('quake'); void ov.offsetWidth; ov.classList.add('quake'); setTimeout(() => ov.classList.remove('quake'), 700); };
+    if (!['legend', 'myth', 'trans'].includes(p.rarity)) return { dur: 900, html: wrap('', card), start() { burst(rc.color, 40 + ({ rare: 18, hero: 36 }[p.rarity] || 0)); } };
+    if (p.rarity === 'legend') return { dur: 2300, html: wrap('fx-legend', `<div class="spin3d">${card}</div><div class="rays"></div>`), start() { setTimeout(() => { flash(rc.color); burst(rc.color, 120); burst('#ffffff', 50); }, 1250); } };
+    if (p.rarity === 'myth') {
+      const ps = SHARDS.map((q, i) => { const a = (i / 6) * 6.283 + 0.6; return `<div class="shard" style="clip-path:polygon(${q[0]}% ${q[1]}%,${q[2]}% ${q[3]}%,${q[4]}% ${q[5]}%,${q[6]}% ${q[7]}%);--dx:${Math.round(Math.cos(a) * 260)}px;--dy:${Math.round(Math.sin(a) * 340)}px;--r:${(i % 2 ? 1 : -1) * (160 + i * 40)}deg;animation-delay:${(0.15 + i * 0.28).toFixed(2)}s">${card}</div>`; }).join('');
+      return { dur: 3300, html: wrap('fx-myth', `<div class="shards">${ps}<div class="cracks"></div></div>`), start() { for (let i = 0; i < 6; i++) setTimeout(() => { burst(rc.color, 18, 0.5 + Math.cos(i) * 0.2, 0.42 + Math.sin(i) * 0.2); try { RF.sfx('tap'); } catch (e) { /* noop */ } }, 150 + i * 280 + 500); setTimeout(() => { flash('#ffffff'); burst(rc.color, 200); burst('#ffd45e', 80); shake(); }, 2500); } };
+    }
+    // 초월: 하늘에서 낙하
+    return { dur: 3600, html: wrap('fx-trans', `<div class="beam"></div><div class="skyfall">${card}</div><div class="shock"></div><div class="shock s2"></div>`), start() { setTimeout(() => { flash('#ffffff'); burst(rc.color, 260); burst('#ffffff', 120); shake(); try { RF.sfx('lose'); } catch (e) { /* noop */ } }, 1150); setTimeout(() => { burst(rc.color, 120); shake(); }, 1700); } };
+  }
+
   let skip = false;
   async function reveal(results, bestColor) {
     const ov = $('reveal'), st = $('revealStage'); skip = false;
@@ -464,19 +482,22 @@
     const info = (r) => (r.isNew ? '' : '');
     flash(bestColor);
     if (results.length === 1) {
-      const r = results[0], p = RF.byId[r.id], rc = rarOf(p.rarity);
-      st.innerHTML = `<div class="rv-single" style="--rc:${rc.color}"><div class="rtag">${rc.name}</div>${RF.cardHTML(r.id, { isNew: r.isNew })}<div style="margin-top:14px;font-weight:800">${r.isNew ? '🎉 새 선수 획득!' : `중복! 강화 Lv.${r.level + 1}${r.level >= RF.cat.maxDup ? ' (MAX)' : ' (+2% 능력치)'}`}</div></div>`;
-      RF.sfx(p.rarity); burst(rc.color, 40 + power[p.rarity]);
-      await sleep(900);
+      const r = results[0], p = RF.byId[r.id];
+      const fxc = fxCard(r, ov, flash);
+      st.innerHTML = fxc.html;
+      RF.sfx(p.rarity); fxc.start(st);
+      await sleep(fxc.dur);
     } else {
       st.innerHTML = '<div class="rv-grid"></div>'; const g = st.firstChild;
       for (let i = 0; i < results.length; i++) {
         const r = results[i], p = RF.byId[r.id], rc = rarOf(p.rarity);
         const el = document.createElement('div'); el.innerHTML = RF.cardHTML(r.id, { isNew: r.isNew, sm: true });
-        const card = el.firstChild; card.style.animationDelay = '0s'; g.appendChild(card);
+        const card = el.firstChild; card.style.animationDelay = '0s';
+        if (power[p.rarity] >= 70 && !skip) { const sp = document.createElement('div'); sp.className = 'rv-spot'; const fxc = fxCard(r, ov, flash); sp.innerHTML = fxc.html; ov.appendChild(sp); RF.sfx(p.rarity); fxc.start(sp); const t0 = Date.now(); while (!skip && Date.now() - t0 < fxc.dur) await sleep(80); sp.remove(); skip = false; }
+        g.appendChild(card);
         RF.sfx(p.rarity); burst(rc.color, 8 + power[p.rarity] / 2, 0.15 + 0.7 * ((i % 5) / 4), 0.25 + 0.4 * Math.floor(i / 5));
         if (power[p.rarity] >= 70) flash(rc.color);
-        if (!skip) await sleep(p.rarity === 'trans' ? 1600 : p.rarity === 'myth' ? 900 : p.rarity === 'legend' ? 650 : 330);
+        if (!skip) await sleep(power[p.rarity] >= 70 ? 400 : 330);
       }
       const dups = results.filter((r) => !r.isNew).length;
       const note = document.createElement('div'); note.className = 'tiny center'; note.style.cssText = 'grid-column:1/-1;pointer-events:none';
@@ -486,6 +507,7 @@
     await new Promise((res) => { $('revealClose').onclick = () => { ov.classList.add('hidden'); res(); }; });
   }
   $('revealSkip').addEventListener('click', () => { skip = true; });
+  RF.__reveal = reveal; // 테스트/연출 확인용
 
   // ───────────── 보관함 ─────────────
   let boxFilter = 'ALL';
