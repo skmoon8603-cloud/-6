@@ -1,3 +1,4 @@
+process.env.START_BAL = '0'; // 테스트는 0원 시작을 가정 (실제 기본값은 10,000원)
 'use strict';
 // 랭킹/플레이어 목록 + 관리자(돈 관리·계정 삭제)
 process.env.SESSION_SECRET = 't'; process.env.DEV_LOGIN = '1'; process.env.ADMIN_ID = 'u-boss';

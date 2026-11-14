@@ -1,3 +1,4 @@
+process.env.START_BAL = '0'; // 테스트는 0원 시작을 가정 (실제 기본값은 10,000원)
 'use strict';
 // 일일 출석: 하루 1회, 주간 7일 보상표, 매주 월요일 00시(KST) 초기화
 process.env.SESSION_SECRET = 't'; process.env.DEV_LOGIN = '1';

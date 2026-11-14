@@ -25,5 +25,5 @@ module.exports = {
   ATTEND: [1000, 2000, 3000, 4000, 5000, 5000, 6000], // 일일 출석 보상 (주간 7일, 매주 월요일 00시(KST) 초기화)
   ATTEND_TZ_H: 9,         // 출석 기준 시간대: 한국(UTC+9)
   BOUNCE_CPU_LEVEL: 0.55, // 원 바운스 AI 실력 (0~1)
-  START_BAL: 0,           // 처음 시작 잔액 (0원: CPU를 이겨서 벌어야 함)
+  START_BAL: process.env.START_BAL !== undefined ? Number(process.env.START_BAL) : 10000, // 처음 시작 잔액 (신규 계정 10,000원)
 };

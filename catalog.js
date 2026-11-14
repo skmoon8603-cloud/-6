@@ -6,12 +6,12 @@
 const crypto = require('crypto');
 
 const RARITIES = [
-  { key: 'common', name: '일반', rate: 55, color: '#9aa7b8', base: 50, count: 24 },
+  { key: 'common', name: '일반', rate: 54.8, color: '#9aa7b8', base: 50, count: 24 },
   { key: 'rare',   name: '희귀', rate: 25, color: '#3fa9ff', base: 61, count: 18 },
   { key: 'hero',   name: '영웅', rate: 12, color: '#b65cff', base: 71, count: 14 },
   { key: 'legend', name: '전설', rate: 6,  color: '#ffb81f', base: 81, count: 10 },
   { key: 'myth',   name: '신화', rate: 2,  color: '#ff3d6e', base: 88, count: 6 },
-  { key: 'trans',  name: '초월', rate: 1,  color: '#5cf2ff', base: 96, count: 1, hidden: true }, // 추가 1% (총합 101 기준으로 정규화)
+  { key: 'trans',  name: '초월', rate: 0.2, color: '#5cf2ff', base: 96, count: 1, hidden: true }, // 0.2% (총합 100)
   { key: 'hid',    name: '히든', rate: 0,  color: '#ff5cf2', base: 77, count: 0, hidden: true }, // 뽑기 불가: 관리자를 이기면 받는 특별 캐릭터
 ];
 const HIDDEN_ID = 'X77';

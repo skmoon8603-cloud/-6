@@ -1,3 +1,4 @@
+process.env.START_BAL = '0'; // 테스트는 0원 시작을 가정 (실제 기본값은 10,000원)
 'use strict';
 // Socket.IO 없이 실행 가능한 서버 로직 통합 테스트 (목 소켓 + 메모리 저장소, 계정/내기 포함)
 process.env.MATCH_SECONDS = '60';

@@ -1,3 +1,4 @@
+process.env.START_BAL = '0'; // 테스트는 0원 시작을 가정 (실제 기본값은 10,000원)
 'use strict';
 // 원 바운스: 엔진 규칙 + 서버(목 소켓) 통합 테스트 (AI 승리 보상, 친구 대결, 기권)
 process.env.SESSION_SECRET = 'test-secret'; process.env.DEV_LOGIN = '1';
