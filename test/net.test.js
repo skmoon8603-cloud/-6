@@ -236,7 +236,11 @@ const bal = async (u) => (await accounts.get(u.id)).bal;
   const rk = await call(A_.register, { body: { username: '박 아이디', password: 'secret1' }, ip: '4.4.4.4' }); assert.strictEqual(rk.body.account.nick, '박 아이디'); assert.strictEqual((await call(A_.nick, { token: rk.body.session, body: { nick: 'x' } })).body.account.nick, '박 아이디'); ok('닉네임 = 로그인 아이디로 고정');
   const meanChk = CC.CATALOG.every((p) => p.ovr === Math.round(Object.values(p.stats).reduce((a, b) => a + b, 0) / 7)); assert(meanChk); ok('보관함 점수 = 7개 능력치 평균');
   assert.strictEqual(CC.BY_ID.C01.name, '왕정훈'); assert.strictEqual(CC.BY_ID.C01.rarity, 'common'); assert.strictEqual(CC.BY_ID.C01.pos, 'DF'); assert.deepStrictEqual(['박종모', '최범규'], ['H01', 'H02'].map((i) => CC.BY_ID[i].name)); assert(CC.BY_ID.H01.stats.dri >= 80 && CC.BY_ID.H02.stats.dri >= 80 && CC.BY_ID.H02.stats.sht > CC.BY_ID.H01.stats.sht); assert.deepStrictEqual(CC.RARITIES.map((r) => CC.CATALOG.filter((p) => p.rarity === r.key && !p.starter).length), [24, 18, 14, 10, 6, 1]); ok('왕정훈(일반·수비수), 박종모·최범규(영웅/에픽) 추가, 등급별 개수 유지');
-  assert(K.PLAYER_SPEED_SCALE < 1); ok('선수 이동 속도 배율 ' + K.PLAYER_SPEED_SCALE);
+  { const { Match } = require('../lib/engine'); const mm = new Match({ lineups: [lineA, lineA], invs: [{}, {}], bots: [false, true], seconds: 60 });
+    for (let i = 0; i < 60 * 4; i++) mm.update(K.TICK); // 카운트다운 지나 경기 시작
+    mm.setInput(0, 1, 0, false); for (let i = 0; i < 30; i++) mm.update(K.TICK);
+    const me = mm.players[mm.teams[0].ctrl]; assert(me.sprinting); ok('조이스틱 끝까지 밀면 자동 질주(내 선수가 CPU보다 느리지 않음)');
+    mm.setInput(0, 0.5, 0, false); for (let i = 0; i < 30; i++) mm.update(K.TICK); assert(!me.sprinting); ok('조금만 밀면 걷기(자동 질주 안 함)'); }
   let limited = false; for (let i = 0; i < 70; i++) if ((await call(A_.me, { token: uJ.token, ip: '2.2.2.2' })).status === 429) limited = true;
   assert(limited); ok('API 호출 속도 제한');
   console.log('  stats', game.stats());

@@ -158,7 +158,9 @@ class Match {
         p.boost = 1;
         const human = !tm.bot && tm.ctrl === s;
         if (human) {
-          p.dx = tm.input.mx; p.dy = tm.input.my; p.sp = tm.input.sprint;
+          p.dx = tm.input.mx; p.dy = tm.input.my;
+          // 조이스틱을 끝까지 밀면 체력이 35 이상일 때 자동으로 달린다 (CPU 선수들도 이렇게 달리므로 불리하지 않게). 질주 버튼은 체력 바닥까지 강제 질주.
+          p.sp = tm.input.sprint || (Math.hypot(p.dx, p.dy) > 0.97 && p.stam > 35 && !p.tired);
           if (Math.hypot(p.dx, p.dy) > 0.2) p.ang = Math.atan2(p.dy, p.dx);
         } else if (tm.freeze > 0 && Math.hypot(this.ball.vx, this.ball.vy) < 5) {
           p.dx = p.dy = 0; p.sp = false;

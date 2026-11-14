@@ -379,7 +379,7 @@
     if (l > JR) { dx = (dx / l) * JR; dy = (dy / l) * JR; }
     knob.style.transform = `translate(${dx}px,${dy}px)`;
     const m = Math.min(1, l / JR);
-    if (m < 0.14) { inp.jx = inp.jy = 0; } else { const nx = dx / (l || 1), ny = dy / (l || 1); const mag = Math.min(1, (m - 0.14) / 0.6); inp.jx = nx * mag; inp.jy = ny * mag; }
+    if (m < 0.08) { inp.jx = inp.jy = 0; } else { const nx = dx / (l || 1), ny = dy / (l || 1); const mag = Math.min(1, (m - 0.08) / 0.42); inp.jx = nx * mag; inp.jy = ny * mag; }
   }
   joy.addEventListener('pointermove', (e) => { if (e.pointerId === joyId) { moveJoy(e); e.preventDefault(); } });
   const joyEnd = (e) => { if (e.pointerId !== joyId) return; joyId = null; inp.jx = inp.jy = 0; knob.style.transform = ''; base.classList.remove('act'); base.style.left = ''; base.style.top = ''; };
