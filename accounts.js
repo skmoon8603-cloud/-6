@@ -255,6 +255,22 @@ class Accounts {
     });
   }
 
+  /** 운영자 요청 1회성: 닉네임/아이디가 정확히 일치하는 계정에서 캐릭터를 회수 (flag 로 한 번만) */
+  async revokeItemByNick(nick, pid, flag) {
+    nick = String(nick).toLowerCase();
+    let ids = await this.store.findByNick(nick);
+    if (await this.store.get('u-' + nick) && !ids.includes('u-' + nick)) ids = [...ids, 'u-' + nick];
+    ids = [...new Set(ids)]; if (ids.includes('u-' + nick)) ids = ['u-' + nick];
+    if (ids.length !== 1) return { ok: false, found: ids.length };
+    const id = ids[0];
+    return this.store.txn([id], (m) => {
+      const a = m[id]; if (!a) return { ok: false, found: 0 };
+      if (a[flag]) return { ok: true, already: true, id };
+      const had = a.inv[pid] > 0; delete a.inv[pid]; a[flag] = true;
+      return { ok: true, id, had };
+    });
+  }
+
   async grantAllByNick(nick) {
     nick = String(nick).toLowerCase();
     let ids = await this.store.findByNick(nick);
