@@ -246,11 +246,16 @@ const bal = async (u) => (await accounts.get(u.id)).bal;
       const gkP = mm.players[0], farP = mm.players[1]; farP.x = 200; farP.y = 100; const nearP = mm.players[3]; nearP.x = 880; nearP.y = 560;
       mm.update(K.TICK); assert.strictEqual(t0.ctrl, 3); ok('골키퍼는 항상 AI, 공에서 멀면 가까운 선수로 자동 전환');
       mm.ball.owner = 0; mm.autoCtrl(gkP); assert(t0.ctrl !== 0); mm.ball.owner = -1; }
-    { // 계속 끝까지 밀어도 속도가 출렁이지 않는다: 질주 on/off 전환이 몇 번 안 됨 (예전엔 체력 35 근처에서 매 틱 번갈아 켜졌다 꺼짐)
-      mm.ball.owner = -1; mm.ball.x = 1700; mm.ball.y = 100; mm.teams[0].lastAuto = mm.tick + 99999; const me2 = mm.players[mm.teams[0].ctrl]; me2.x = 100; me2.y = 550; me2.stam = 100; me2.autoSp = true;
-      mm.setInput(0, 1, 0, false); let flips = 0, prev = null; for (let i = 0; i < 60 * 14; i++) { mm.update(K.TICK); me2.x = Math.min(me2.x, 1500); if (prev !== null && prev !== me2.sprinting) flips++; prev = me2.sprinting; }
-      assert(flips <= 4, '질주 전환 ' + flips + '회'); ok('계속 달려도 속도가 출렁이지 않음(질주 전환 ' + flips + '회)'); mm.setInput(0, 0, 0, false); }
-    mm.setInput(0, 0.5, 0, false); for (let i = 0; i < 30; i++) mm.update(K.TICK); assert(!me.sprinting); ok('조금만 밀면 걷기(자동 질주 안 함)'); }
+    { // 사람이 조종하는 선수는 14초를 달려도, 어떤 상태에서도 달리기 속도가 일정하다 (체력/피로/교체와 무관)
+      mm.ball.owner = -1; mm.ball.x = 1700; mm.ball.y = 100; mm.teams[0].lastAuto = mm.tick + 99999; const me2 = mm.players[mm.teams[0].ctrl]; me2.x = 100; me2.y = 550; me2.stam = 3; me2.tired = true; me2.vx = me2.vy = 0; mm.players.forEach((q, i) => { if (q !== me2) { q.x = 1000 + (i % 6) * 120; q.y = 80 + (i >= 6 ? 700 : 0); q.vx = q.vy = 0; q.dx = q.dy = 0; q.freeze = 1; } }); /* 다른 선수와 부딪혀 멈추는 경우 제외 */
+      mm.autoSwitch = () => {}; /* 자동 선수 전환은 위에서 따로 검증 */
+      const top = me2.maxSpd * K.SPRINT_MUL; let minV = 1e9;
+      mm.setInput(0, 0.4, 0, false); const park = () => mm.players.forEach((q, i) => { if (q !== me2) { q.x = 100 + i * 140; q.y = 1060; q.vx = q.vy = 0; } }); mm.ball.owner = -1; mm.ball.x = 900; mm.ball.y = 80; mm.ball.vx = mm.ball.vy = 0;
+      for (let i = 0; i < 60 * 3; i++) { park(); mm.update(K.TICK); me2.y = 550; if (i > 30) minV = Math.min(minV, Math.hypot(me2.vx, me2.vy)); if (me2.x > 1500) me2.x = 100; }
+      assert(minV >= top * 0.98, `최저 속도 ${minV.toFixed(0)} < 달리기 ${top.toFixed(0)}`); ok('체력이 바닥이어도, 조이스틱을 조금만 밀어도 항상 달리기 속도(' + top.toFixed(0) + ')');
+      assert.strictEqual(me2.stam, 100); ok('사람이 조종하는 선수는 체력 소모 없음');
+      mm.setInput(0, 0.1, 0, false); for (let i = 0; i < 40; i++) mm.update(K.TICK); assert(Math.hypot(me2.vx, me2.vy) < 5); ok('밀지 않으면(10%) 멈춤'); }
+  }
   let limited = false; for (let i = 0; i < 70; i++) if ((await call(A_.me, { token: uJ.token, ip: '2.2.2.2' })).status === 429) limited = true;
   assert(limited); ok('API 호출 속도 제한');
   console.log('  stats', game.stats());

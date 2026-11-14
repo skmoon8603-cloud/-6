@@ -50,7 +50,7 @@ class Match {
         const p = {
           i: side * K.TEAM_SIZE + slot, side, slot, pos: C.SLOTS[slot], st, id,
           x: 0, y: 0, vx: 0, vy: 0, ang: side === 0 ? 0 : Math.PI, stam: 100, tired: false,
-          kickCd: 0, kickAnim: 0, tackleCd: 0, hold: 0, skill: o.bots[side] ? K.BOT_SKILL : K.MATE_SKILL, aiNoise: 0, think: 0, dx: 0, dy: 0, sp: false, autoSp: true, boost: 1, catchCd: 0, diving: 0,
+          kickCd: 0, kickAnim: 0, tackleCd: 0, hold: 0, skill: o.bots[side] ? K.BOT_SKILL : K.MATE_SKILL, aiNoise: 0, think: 0, dx: 0, dy: 0, sp: false, runner: false, boost: 1, catchCd: 0, diving: 0,
           maxSpd: (115 + st.spd * 0.95) * (C.SLOTS[slot] === 'GK' ? K.GK_SPEED_MUL : 1),
         };
         this.players.push(p);
@@ -156,14 +156,14 @@ class Match {
         const p = this.players[tm.side * K.TEAM_SIZE + s];
         p.kickCd = Math.max(0, p.kickCd - dt); p.kickAnim = Math.max(0, p.kickAnim - dt);
         p.catchCd = Math.max(0, p.catchCd - dt); p.tackleCd = Math.max(0, p.tackleCd - dt); p.diving = Math.max(0, p.diving - dt);
-        p.boost = 1;
+        p.boost = 1; p.runner = false;
         const human = !tm.bot && tm.ctrl === s;
         if (human) {
-          p.dx = tm.input.mx; p.dy = tm.input.my;
-          // 조이스틱을 끝까지 밀면 체력이 있을 때 자동으로 달린다 (CPU 선수들도 이렇게 달리므로 불리하지 않게). 질주 버튼은 체력 바닥까지 강제 질주.
-          // 자동 질주는 히스테리시스: 체력 15 아래로 떨어지면 멈추고 55 이상 회복해야 다시 시작 (35 근처에서 달렸다 멈췄다 반복하며 속도가 출렁이는 것 방지)
-          if (p.stam <= 15 || p.tired) p.autoSp = false; else if (p.stam >= 55) p.autoSp = true;
-          p.sp = tm.input.sprint || (Math.hypot(p.dx, p.dy) > 0.97 && !!p.autoSp);
+          // 내가 조종하는 선수는 항상 '달리기 속도' 고정: 조이스틱/키를 조금만 밀어도(30% 이상) 최고 달리기 속도로 움직이고,
+          // 체력·공 소유·선수 교체와 상관없이 절대 그보다 느려지지 않는다 (밀지 않으면 멈춤). 방향만 정하면 된다.
+          const im = Math.hypot(tm.input.mx, tm.input.my);
+          if (im > 0.3) { p.dx = tm.input.mx / im; p.dy = tm.input.my / im; p.sp = true; } else { p.dx = p.dy = 0; p.sp = false; }
+          p.runner = true;
           if (Math.hypot(p.dx, p.dy) > 0.2) p.ang = Math.atan2(p.dy, p.dx);
         } else if (tm.freeze > 0 && Math.hypot(this.ball.vx, this.ball.vy) < 5) {
           p.dx = p.dy = 0; p.sp = false;
@@ -181,10 +181,12 @@ class Match {
   movePlayer(p, dt) {
     const mag = Math.min(1, Math.hypot(p.dx, p.dy));
     let sprinting = false;
-    if (mag > 0.1) {
+    if (p.runner) { // 사람이 조종 중: 체력 소모/피로 없이 항상 달리기 속도
+      p.stam = 100; p.tired = false; sprinting = mag > 0.1;
+    } else if (mag > 0.1) {
       if (p.sp && p.stam > 0 && !p.tired) sprinting = true;
     }
-    if (sprinting) {
+    if (p.runner) { /* 체력 고정 */ } else if (sprinting) {
       p.stam -= 18 * (1.5 - p.st.sta / 100) * dt;
       if (p.stam <= 0) { p.stam = 0; p.tired = true; }
     } else {
