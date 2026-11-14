@@ -246,6 +246,10 @@ const bal = async (u) => (await accounts.get(u.id)).bal;
       const gkP = mm.players[0], farP = mm.players[1]; farP.x = 200; farP.y = 100; const nearP = mm.players[3]; nearP.x = 880; nearP.y = 560;
       mm.update(K.TICK); assert.strictEqual(t0.ctrl, 3); ok('골키퍼는 항상 AI, 공에서 멀면 가까운 선수로 자동 전환');
       mm.ball.owner = 0; mm.autoCtrl(gkP); assert(t0.ctrl !== 0); mm.ball.owner = -1; }
+    { // 계속 끝까지 밀어도 속도가 출렁이지 않는다: 질주 on/off 전환이 몇 번 안 됨 (예전엔 체력 35 근처에서 매 틱 번갈아 켜졌다 꺼짐)
+      mm.ball.owner = -1; mm.ball.x = 1700; mm.ball.y = 100; mm.teams[0].lastAuto = mm.tick + 99999; const me2 = mm.players[mm.teams[0].ctrl]; me2.x = 100; me2.y = 550; me2.stam = 100; me2.autoSp = true;
+      mm.setInput(0, 1, 0, false); let flips = 0, prev = null; for (let i = 0; i < 60 * 14; i++) { mm.update(K.TICK); me2.x = Math.min(me2.x, 1500); if (prev !== null && prev !== me2.sprinting) flips++; prev = me2.sprinting; }
+      assert(flips <= 4, '질주 전환 ' + flips + '회'); ok('계속 달려도 속도가 출렁이지 않음(질주 전환 ' + flips + '회)'); mm.setInput(0, 0, 0, false); }
     mm.setInput(0, 0.5, 0, false); for (let i = 0; i < 30; i++) mm.update(K.TICK); assert(!me.sprinting); ok('조금만 밀면 걷기(자동 질주 안 함)'); }
   let limited = false; for (let i = 0; i < 70; i++) if ((await call(A_.me, { token: uJ.token, ip: '2.2.2.2' })).status === 429) limited = true;
   assert(limited); ok('API 호출 속도 제한');

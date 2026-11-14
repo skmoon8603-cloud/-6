@@ -96,7 +96,7 @@
     sc = ch / viewH;
     if (cw / sc > W + 2 * M) sc = cw / (W + 2 * M);
     let need = Math.min(2.4, Math.max(1, sc * dpr));
-    need = Math.min(need, Math.sqrt(12e6 / ((W + 2 * M) * (H + 2 * M)))); // 모바일 캔버스 크기 한도(약 1,600만 화소) 안전 마진
+    need = Math.min(need, Math.sqrt(12e6 / ((W + 2 * M) * (H + 2 * M))), 4000 / (W + 2 * M)); // 가로세로 4096 화소 이하(모바일 GPU 텍스처 한도)로 제한 // 모바일 캔버스 크기 한도(약 1,600만 화소) 안전 마진
     if (!pitch || Math.abs(need - pitchScale) > 0.25) { pitch = buildPitch(need); pitchScale = need; }
   };
   R.setMatch = (info) => {
@@ -218,7 +218,11 @@
 
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0b1a2e'; ctx.fillRect(0, 0, cv.width, cv.height);
     ctx.setTransform(dpr * sc, 0, 0, dpr * sc, (cw / 2 - cam.x * sc + sx * sc) * dpr, (ch / 2 - cam.y * sc + sy * sc) * dpr);
-    ctx.drawImage(pitch, -M, -M, W + 2 * M, H + 2 * M);
+    { // 화면에 보이는 부분만 그린다 (거대한 경기장 이미지를 통째로 그리면 폰 GPU 한도를 넘어 특정 구역에서 버벅임)
+      const pad = 40, vx0 = Math.max(-M, cam.x - cw / sc / 2 - pad), vy0 = Math.max(-M, cam.y - ch / sc / 2 - pad);
+      const vx1 = Math.min(W + M, cam.x + cw / sc / 2 + pad), vy1 = Math.min(H + M, cam.y + ch / sc / 2 + pad);
+      ctx.drawImage(pitch, (vx0 + M) * pitchScale, (vy0 + M) * pitchScale, (vx1 - vx0) * pitchScale, (vy1 - vy0) * pitchScale, vx0, vy0, vx1 - vx0, vy1 - vy0);
+    }
 
     // 먼지/링
     for (let i = dust.length - 1; i >= 0; i--) { const d = dust[i]; d.life -= dt; if (d.life <= 0) { dust.splice(i, 1); continue; } ctx.globalAlpha = (d.life / d.max) * 0.35; ctx.fillStyle = '#e8f5d0'; ctx.beginPath(); ctx.arc(d.x, d.y, 3 + (1 - d.life / d.max) * 5, 0, 6.2832); ctx.fill(); }

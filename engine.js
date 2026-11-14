@@ -50,7 +50,7 @@ class Match {
         const p = {
           i: side * K.TEAM_SIZE + slot, side, slot, pos: C.SLOTS[slot], st, id,
           x: 0, y: 0, vx: 0, vy: 0, ang: side === 0 ? 0 : Math.PI, stam: 100, tired: false,
-          kickCd: 0, kickAnim: 0, tackleCd: 0, hold: 0, skill: o.bots[side] ? K.BOT_SKILL : K.MATE_SKILL, aiNoise: 0, think: 0, dx: 0, dy: 0, sp: false, boost: 1, catchCd: 0, diving: 0,
+          kickCd: 0, kickAnim: 0, tackleCd: 0, hold: 0, skill: o.bots[side] ? K.BOT_SKILL : K.MATE_SKILL, aiNoise: 0, think: 0, dx: 0, dy: 0, sp: false, autoSp: true, boost: 1, catchCd: 0, diving: 0,
           maxSpd: (115 + st.spd * 0.95) * (C.SLOTS[slot] === 'GK' ? K.GK_SPEED_MUL : 1),
         };
         this.players.push(p);
@@ -160,8 +160,10 @@ class Match {
         const human = !tm.bot && tm.ctrl === s;
         if (human) {
           p.dx = tm.input.mx; p.dy = tm.input.my;
-          // 조이스틱을 끝까지 밀면 체력이 35 이상일 때 자동으로 달린다 (CPU 선수들도 이렇게 달리므로 불리하지 않게). 질주 버튼은 체력 바닥까지 강제 질주.
-          p.sp = tm.input.sprint || (Math.hypot(p.dx, p.dy) > 0.97 && p.stam > 35 && !p.tired);
+          // 조이스틱을 끝까지 밀면 체력이 있을 때 자동으로 달린다 (CPU 선수들도 이렇게 달리므로 불리하지 않게). 질주 버튼은 체력 바닥까지 강제 질주.
+          // 자동 질주는 히스테리시스: 체력 15 아래로 떨어지면 멈추고 55 이상 회복해야 다시 시작 (35 근처에서 달렸다 멈췄다 반복하며 속도가 출렁이는 것 방지)
+          if (p.stam <= 15 || p.tired) p.autoSp = false; else if (p.stam >= 55) p.autoSp = true;
+          p.sp = tm.input.sprint || (Math.hypot(p.dx, p.dy) > 0.97 && !!p.autoSp);
           if (Math.hypot(p.dx, p.dy) > 0.2) p.ang = Math.atan2(p.dy, p.dx);
         } else if (tm.freeze > 0 && Math.hypot(this.ball.vx, this.ball.vy) < 5) {
           p.dx = p.dy = 0; p.sp = false;
