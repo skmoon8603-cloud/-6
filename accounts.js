@@ -227,6 +227,15 @@ class Accounts {
   }
 
   /** 운영자 요청 1회성 지급: 닉네임이 정확히 일치하는 계정이 '한 개'일 때만, 모든 캐릭터를 1장(Lv.1)씩 지급. (이미 지급했으면 건너뜀) */
+  /** 운영자 요청 1회성: 계정의 티어 점수를 최소 pts 로 올린다 (flag 로 한 번만) */
+  async grantTier(id, pts, flag) {
+    return this.store.txn([id], (m) => {
+      const a = m[id]; if (!a) return { ok: false };
+      if (a[flag]) return { ok: true, already: true };
+      a.pts = Math.max(a.pts || 0, pts); a[flag] = true; return { ok: true };
+    });
+  }
+
   async grantAllByNick(nick) {
     nick = String(nick).toLowerCase();
     let ids = await this.store.findByNick(nick);
