@@ -83,6 +83,7 @@ if (fs.existsSync(path.join(PUB, 'index.html'))) {
   if (fs.existsSync(path.join(__dirname, 'flash.jpg'))) app.get('/flash.jpg', (_req, res) => res.sendFile(path.join(__dirname, 'flash.jpg')));
   app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
   CLIENT.forEach((f) => app.get('/' + f, (_req, res) => res.sendFile(path.join(__dirname, f))));
+  if (fs.existsSync(path.join(__dirname, 'bgm.mp3'))) app.get('/bgm.mp3', (_req, res) => res.sendFile(path.join(__dirname, 'bgm.mp3')));
   for (const i of [1, 2, 3]) if (fs.existsSync(path.join(__dirname, `goal${i}.mp3`))) app.get(`/goal${i}.mp3`, (_req, res) => res.sendFile(path.join(__dirname, `goal${i}.mp3`))); // 골 리플레이 음악 3곡
 }
 

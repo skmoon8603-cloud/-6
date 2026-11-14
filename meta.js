@@ -180,66 +180,23 @@
     crash(tf + E * 2, 0.35); kick(tf + E * 2, 0.55); guitar(pw(164.81), 0.9, 0.14, tf + E * 2); bass(82.41, 0.9, 0.15, tf + E * 2);
     return BEAT;
   };
-  // ───────────── 배경음악 (직접 만든 잔잔한 칩튠 루프, 약 100BPM · Am-F-C-G) ─────────────
-  let bgmOn = LS.get('bgm', true), bgmGain = null, bgmTimer = 0, bgmNext = 0, bgmStep = 0, bgmLevel = 1, bgmMatch = false;
-  const BPM = 100, SP = 60 / BPM / 2; // 8분음표 길이
-  const CH = [[110, 164.8, 220, 261.6, 329.6], [87.3, 130.8, 174.6, 220, 261.6], [130.8, 196, 261.6, 329.6, 392], [98, 146.8, 196, 246.9, 293.7]]; // 베이스 + 코드톤
-  function bvoice(f, d, type, vol, t) {
-    const c = ac; const o = c.createOscillator(), g = c.createGain();
-    o.type = type; o.frequency.setValueAtTime(f, t);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-    o.connect(g).connect(bgmGain); o.start(t); o.stop(t + d + 0.03);
-  }
-  function bnoise(d, vol, f, t) {
-    const c = ac, n = Math.floor(c.sampleRate * d), buf = c.createBuffer(1, n, c.sampleRate), ch = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
-    const s = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain(); fl.type = 'highpass'; fl.frequency.value = f; g.gain.value = vol; s.buffer = buf;
-    s.connect(fl).connect(g).connect(bgmGain); s.start(t);
-  }
-  // 경기 중 신나는 곡: 138BPM, 4박 킥 + 오프비트 하이햇 + 스네어 + 톱니파 리드 (Am-F-C-G)
-  const MSP = 60 / 138 / 2;
-  const LEAD = [[0, 2, 4, 2, 5, 4, 2, 0], [0, 1, 2, 4, 5, 4, 2, 1], [2, 4, 5, 7, 5, 4, 2, 4], [1, 2, 4, 5, 4, 2, 1, 0]]; // 코드톤 번호(0~7)
-  const SCALE = (ch, i) => ch[1 + (i % 4)] * (i >= 4 ? 2 : 1);
-  function bkick(t) { const c = ac, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(170, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); o.connect(g).connect(bgmGain); o.start(t); o.stop(t + 0.22); }
-  function bgmMatchStep(s, t) {
-    const bar = Math.floor(s / 8) % 8, k = s % 8, ch = CH[Math.floor(bar / 2) % 4];
-    if (k % 2 === 0) bkick(t);                                              // 4박 킥
-    if (k === 2 || k === 6) { bnoise(0.12, 0.2, 1800, t); bvoice(190, 0.1, 'triangle', 0.12, t); } // 스네어
-    if (k % 2 === 1) bnoise(0.035, 0.09, 8000, t);                          // 오프비트 하이햇
-    bvoice(ch[0], MSP * 1.7, 'sawtooth', 0.075, t + (k % 2 ? MSP * 0 : 0));  // 달리는 베이스 (8분음표)
-    const ln = LEAD[Math.floor(bar / 2) % 4][k];
-    if (bar % 2 === 1 || k % 2 === 0) bvoice(SCALE(ch, ln) * 2, MSP * 1.5, 'square', 0.05, t); // 리드
-    if (k === 0) { bvoice(ch[2], MSP * 7.5, 'sawtooth', 0.025, t); bvoice(ch[3], MSP * 7.5, 'sawtooth', 0.02, t); } // 코드 패드
-    if (k === 0 && bar % 4 === 3) bnoise(0.5, 0.12, 3000, t);               // 4마디마다 크래시
-  }
-  function bgmSchedule() {
-    if (!ac || !bgmGain) return;
-    const sp = bgmMatch ? MSP : SP;
-    while (bgmNext < ac.currentTime + 0.6) {
-      const s = bgmStep, bar = Math.floor(s / 8) % 8, k = s % 8, ch = CH[Math.floor(bar / 2) % 4], t = bgmNext;
-      if (bgmMatch) { bgmMatchStep(s, t); bgmNext += sp; bgmStep++; continue; }
-      if (k === 0 || k === 4) bvoice(ch[0], SP * 3.6, 'triangle', 0.1, t);                       // 베이스
-      if (k === 0) { bvoice(ch[1], SP * 7.5, 'sine', 0.035, t); bvoice(ch[2], SP * 7.5, 'sine', 0.03, t); } // 은은한 패드
-      const arp = [1, 3, 2, 4, 3, 2, 4, 2][k]; bvoice(ch[arp] * (bar >= 4 && k % 4 === 2 ? 2 : 1), SP * 1.6, 'square', 0.022, t); // 아르페지오
-      if (k % 4 === 2) bnoise(0.04, 0.05, 7000, t);                                              // 하이햇
-      if (k === 0 && bar % 2 === 0) { bvoice(150, 0.12, 'sine', 0.12, t); }                      // 부드러운 킥
-      bgmNext += sp; bgmStep++;
-    }
-  }
+  // ───────────── 배경음악: 로비/메뉴에서만 노래(bgm.mp3) 반복 재생, 경기 중에는 배경음악 없음 ─────────────
+  let bgmOn = LS.get('bgm', true), bgmLevel = 1, bgmEl = null;
+  const BGM_VOL = 0.55;
   function bgmApply() {
-    const c = ac; if (!c || !bgmGain) return;
-    bgmGain.gain.cancelScheduledValues(c.currentTime); bgmGain.gain.linearRampToValueAtTime(bgmOn && !muted ? (bgmMatch ? 1.5 : 1.3) * (bgmLevel > 0 ? 1 : 0) : 0, c.currentTime + 0.5);
+    if (!bgmEl) return;
+    const play = bgmOn && !muted && bgmLevel >= 1 && !document.hidden;
+    bgmEl.volume = BGM_VOL;
+    if (play) { const r = bgmEl.play(); if (r && r.catch) r.catch(() => {}); } else bgmEl.pause();
   }
   function bgmStart() {
-    const c = ctx(); if (!c || bgmTimer) return;
-    bgmGain = c.createGain(); bgmGain.gain.value = 0;
-    const cp = c.createDynamicsCompressor(); cp.threshold.value = -14; cp.ratio.value = 6; bgmGain.connect(cp); cp.connect(c.destination); // 음량을 키워도 깨지지 않게
-    bgmNext = c.currentTime + 0.1; bgmStep = 0; bgmTimer = setInterval(bgmSchedule, 150); bgmApply();
+    if (bgmEl) return;
+    bgmEl = new Audio('/bgm.mp3'); bgmEl.loop = true; bgmEl.preload = 'auto'; bgmApply();
   }
-  /** level: 1 로비(잔잔한 곡) / 0<level<1 경기 중(신나는 곡) / 0 리플레이 중(끔, 골 노래) */
-  RF.bgmDuck = (level) => { const m = level > 0 && level < 1 ? true : level >= 1 ? false : bgmMatch; if (m !== bgmMatch) { bgmMatch = m; bgmStep = 0; if (ac) bgmNext = ac.currentTime + 0.05; } bgmLevel = level; bgmApply(); };
+  /** level: 1 로비(노래 재생) / 그 외(경기 중·리플레이)는 배경음악 끔 */
+  RF.bgmDuck = (level) => { bgmLevel = level; bgmApply(); };
   RF.bgmToggle = () => { bgmOn = !bgmOn; LS.set('bgm', bgmOn); if (bgmOn) bgmStart(); bgmApply(); const b = document.getElementById('btnBgm'); if (b) { b.classList.toggle('off', !bgmOn); b.textContent = bgmOn ? '🎵' : '🔇'; } return bgmOn; };
-  document.addEventListener('visibilitychange', () => { if (!ac) return; if (document.hidden) ac.suspend && ac.suspend(); else ac.resume && ac.resume(); });
+  document.addEventListener('visibilitychange', () => { bgmApply(); if (!ac) return; if (document.hidden) ac.suspend && ac.suspend(); else ac.resume && ac.resume(); });
   RF.isMuted = () => muted;
   RF.setMuted = (m) => { muted = !!m; LS.set('mute', muted); bgmApply(); };
   document.addEventListener('pointerdown', () => { ctx(); if (bgmOn) bgmStart(); }, { once: true, passive: true });
