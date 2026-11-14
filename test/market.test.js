@@ -8,7 +8,7 @@ const C = require('../lib/catalog');
 let n = 0; const ok = (name, f) => f().then(() => { n++; }).catch((e) => { console.error('실패:', name, e.message); process.exit(1); });
 
 (async () => {
-  const store = new MemoryStore(); const acc = new Accounts(store); const mk = new Market(store);
+  const store = new MemoryStore(); const acc = new Accounts(store); const mk = new Market(store); mk.ensureDaily = async () => {};
   await acc.register('alice', 'secret1'); await acc.register('bob', 'secret1');
   const A = 'u-alice', B = 'u-bob';
   const common = C.CATALOG.find((p) => p.rarity === 'common' && !p.starter && !p.hidden).id;
@@ -86,6 +86,35 @@ let n = 0; const ok = (name, f) => f().then(() => { n++; }).catch((e) => { conso
     assert.strictEqual(pl.players.length, 3);
     process.env.ADMIN_ID = ''; // 관리자 삭제 보호는 id 검사로 충분
   });
+
+  // ── 구단 자동 매물 ──
+  {
+    let t = Date.UTC(2026, 10, 14, 1, 0, 0); // KST 10시
+    const st2 = new MemoryStore(), ac2 = new Accounts(st2), m2 = new Market(st2, { now: () => t });
+    await ac2.register('dan', 'secret1'); await st2.txn(['u-dan'], (m) => { m['u-dan'].bal = 10 ** 7; });
+    await ok('구단: 하루 5개 자동 등록', async () => {
+      const v = await m2.view('u-dan'); const sys = v.list.filter((l) => l.sys);
+      assert.strictEqual(sys.length, 5); assert.strictEqual(new Set(sys.map((l) => l.pid)).size, 5);
+      for (const l of sys) { const p = C.BY_ID[l.pid]; assert.ok(!p.starter && !p.hidden); assert.ok(l.price >= QUICK[p.rarity]); assert.strictEqual(l.mine, false); }
+      assert.strictEqual((await m2.view('u-dan')).list.length, 5); // 같은 날 다시 봐도 늘지 않음
+    });
+    await ok('구단 매물 구매: 돈만 빠지고 카드 지급, 취소 불가', async () => {
+      const l = (await m2.view('u-dan')).list[0]; const b0 = (await ac2.raw('u-dan')).bal;
+      const r = await m2.buy('u-dan', l.id); assert.ok(r.ok);
+      assert.strictEqual((await ac2.raw('u-dan')).bal, b0 - l.price); assert.ok((await ac2.raw('u-dan')).inv[l.pid] >= 1);
+      assert.strictEqual((await m2.view('u-dan')).list.length, 4);
+      assert.strictEqual((await m2.cancel('u-dan', (await m2.view('u-dan')).list[0].id)).error, 'gone');
+    });
+    await ok('구단: 같은 날 자정 전엔 유지, 한국 자정이 지나면 새로 5개로 교체 (사람 매물은 유지)', async () => {
+      const mine = await m2.list('u-dan', (await ac2.raw('u-dan')).inv && Object.keys((await ac2.raw('u-dan')).inv)[0], 99999);
+      t += 13 * 3600000; // 같은 KST 날(23시)
+      assert.strictEqual((await m2.view('u-dan')).list.filter((l) => l.sys).length, 4);
+      t += 2 * 3600000; // 다음 날 01시 KST
+      const v = await m2.view('u-dan');
+      assert.strictEqual(v.list.filter((l) => l.sys).length, 5);
+      if (mine.ok) assert.ok(v.list.some((l) => l.mine));
+    });
+  }
 
   // ── 채팅 ──
   const handlers = {}; const sent = [];

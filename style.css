@@ -471,3 +471,5 @@ input{font:inherit;color:inherit}
 .cdel{position:absolute;right:-8px;top:-8px;width:20px;height:20px;border-radius:50%;background:var(--hot);color:#fff;font-size:10px}
 .ch-form{display:flex;gap:8px;margin-top:10px}.ch-form .inp{flex:1}.ch-form .btn{flex:none;width:84px}
 #chInp{user-select:text;-webkit-user-select:text}
+.mk-item.sys .mk-price{border-color:#2cff8a88;background:linear-gradient(180deg,#073a22,#04200f);color:#b8ffd9}
+.mk-item.sys .mk-meta span:first-child{color:var(--acc);font-weight:800}

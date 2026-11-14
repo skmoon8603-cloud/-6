@@ -17,14 +17,46 @@ const MAX_PRICE = 5000000, MAX_LISTINGS = 8, FEE_PCT = 5, MAX_BAL = 1e9;
 const nickOf = (a) => (a.id.startsWith('u-') ? a.id.slice(2) : a.nick || 'PLAYER');
 const sellable = (pid) => { const p = C.BY_ID[pid]; return p && !p.starter && !p.hidden && QUICK[p.rarity] ? p : null; };
 const range = (p) => [QUICK[p.rarity], Math.min(MAX_PRICE, QUICK[p.rarity] * 200)];
-const fresh = () => ({ id: MID, list: [], seq: 0, last: {} });
+const fresh = () => ({ id: MID, list: [], seq: 0, last: {}, sysDay: -1 });
+// 구단(시스템)이 매일 자동으로 올리는 매물: 하루 SYS_DAILY개, 한국 시간 자정에 어제 안 팔린 것은 내리고 새로 올린다.
+const SYS_DAILY = 5, SYS_ID = '__sys', SYS_NAME = '구단';
+const SYS_W = { common: 45, rare: 32, hero: 15, legend: 7, myth: 1 };
+const SYS_MULT = { common: 2, rare: 2, hero: 2, legend: 2.2, myth: 2.5 }; // 즉시판매가 대비 배수 (살 때가 팔 때보다 비싸다)
+const kstDay = (t) => Math.floor((t + 9 * 3600000) / 86400000);
+const rnd = (n) => require('crypto').randomInt(0, n);
 
 class Market {
-  constructor(store) { this.store = store; }
+  constructor(store, opts = {}) { this.store = store; this.now = opts.now || (() => Date.now()); }
+
+  /** 오늘(KST) 구단 매물이 아직 안 올라왔으면 올린다 */
+  async ensureDaily() {
+    const day = kstDay(this.now());
+    const cur = await this.store.get(MID);
+    if (cur && cur.sysDay === day) return;
+    return this.store.txn([MID], (m) => {
+      const d = m[MID] || (m[MID] = fresh());
+      if (d.sysDay === day) return;
+      d.list = d.list.filter((l) => !l.sys);
+      const pool = C.CATALOG.filter((p) => sellable(p.id));
+      const used = new Set();
+      for (let i = 0; i < SYS_DAILY; i++) {
+        let tot = 0; for (const p of pool) if (!used.has(p.id)) tot += SYS_W[p.rarity] || 0;
+        let r = rnd(Math.max(1, Math.floor(tot * 100))) / 100, pick = null;
+        for (const p of pool) { if (used.has(p.id)) continue; r -= SYS_W[p.rarity] || 0; if (r < 0) { pick = p; break; } }
+        if (!pick) pick = pool.find((p) => !used.has(p.id)); if (!pick) break;
+        used.add(pick.id);
+        const base = QUICK[pick.rarity] * SYS_MULT[pick.rarity];
+        const price = Math.max(QUICK[pick.rarity], Math.round((base * (0.9 + rnd(21) / 100)) / 10) * 10);
+        d.list.push({ id: ++d.seq, pid: pick.id, price, s: SYS_ID, sn: SYS_NAME, sys: true, ts: this.now() + i });
+      }
+      d.sysDay = day;
+    });
+  }
 
   async view(uid) {
+    await this.ensureDaily();
     const d = (await this.store.get(MID)) || fresh();
-    const list = d.list.slice().sort((a, b) => b.ts - a.ts).slice(0, 300).map((l) => ({ id: l.id, pid: l.pid, price: l.price, seller: l.sn, ts: l.ts, mine: l.s === uid }));
+    const list = d.list.slice().sort((a, b) => b.ts - a.ts).slice(0, 300).map((l) => ({ id: l.id, pid: l.pid, price: l.price, seller: l.sn, ts: l.ts, mine: l.s === uid, ...(l.sys ? { sys: true } : {}) }));
     return { list, last: d.last, quick: QUICK, fee: FEE_PCT, maxListings: MAX_LISTINGS, maxPrice: MAX_PRICE };
   }
 
@@ -60,6 +92,7 @@ class Market {
 
   /** 구매: 구매자 돈 차감 → 카드 지급, 판매자에게 (가격 - 수수료) 입금 */
   async buy(uid, lid) {
+    await this.ensureDaily();
     const d0 = await this.store.get(MID);
     const l0 = d0 && d0.list.find((l) => l.id === lid);
     if (!l0) return { error: 'gone' };
@@ -94,4 +127,4 @@ class Market {
     });
   }
 }
-module.exports = { Market, QUICK, FEE_PCT, MAX_LISTINGS, MID };
+module.exports = { Market, SYS_DAILY, QUICK, FEE_PCT, MAX_LISTINGS, MID };

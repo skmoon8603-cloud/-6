@@ -43,15 +43,16 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails
   console.log('[2] B: 시장에서 구매 (실시간 갱신)');
   await B.page.click('#nav [data-go=market]'); await sleep(700);
   await shot(B, 'buy');
-  ok((await B.page.locator('#mkBody .mk-item').count()) >= 1, 'B 화면에 A의 매물 표시');
+  ok((await B.page.locator('#mkBody .mk-item.sys').count()) === 5, '구단 오늘의 특가 5개 표시');
+  ok((await B.page.locator('#mkBody .mk-item:not(.sys)').count()) >= 1, 'B 화면에 A의 매물 표시');
   const balB = await B.page.evaluate(() => RF.state.bal), balA = await A.page.evaluate(() => RF.state.bal);
-  await B.page.locator('#mkBody .mk-item').first().click(); await sleep(250); await shot(B, 'buymodal');
+  await B.page.locator('#mkBody .mk-item:not(.sys)').first().click(); await sleep(250); await shot(B, 'buymodal');
   await B.page.click('#mkBuy'); await sleep(900);
   ok((await B.page.evaluate(() => RF.state.bal)) === balB - 1500, 'B 잔액 1,500원 차감');
   ok((await B.page.evaluate((id) => RF.state.inv[id] || 0, pid)) >= 1, 'B 보관함에 선수 추가');
   await sleep(600);
   ok((await A.page.evaluate(() => RF.state.bal)) === balA + 1425, 'A에게 수수료 5% 뺀 1,425원 입금(실시간 반영)');
-  ok((await B.page.locator('#mkBody .mk-item').count()) === 0, '팔린 매물은 목록에서 사라짐');
+  ok((await B.page.locator('#mkBody .mk-item:not(.sys)').count()) === 0, '팔린 매물은 목록에서 사라짐');
 
   console.log('[3] 채팅');
   await A.page.click('#nav [data-go=chat]'); await B.page.click('#nav [data-go=chat]'); await sleep(600);

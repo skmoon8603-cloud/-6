@@ -35,9 +35,9 @@
 
   function listingCard(l, extra) {
     const p = RF.byId[l.pid], h = last(l.pid);
-    return `<div class="mk-item" data-lid="${l.id}" data-pid="${l.pid}">${RF.cardHTML(l.pid, { base: true })}
+    return `<div class="mk-item${l.sys ? ' sys' : ''}" data-lid="${l.id}" data-pid="${l.pid}">${RF.cardHTML(l.pid, { base: true })}
       <div class="mk-price">💰 ${l.price.toLocaleString('ko-KR')}</div>
-      <div class="mk-meta">${extra || `<span>${esc(l.seller)}</span>`}${h ? `<span title="최근 거래가">📈 ${h.p.toLocaleString('ko-KR')}</span>` : ''}</div></div>`;
+      <div class="mk-meta">${extra || `<span>${l.sys ? '🏟️ ' : ''}${esc(l.seller)}</span>`}${h ? `<span title="최근 거래가">📈 ${h.p.toLocaleString('ko-KR')}</span>` : ''}</div></div>`;
   }
 
   function viewBuy() {
@@ -66,7 +66,7 @@
     const l = M.data.list.find((x) => x.id === lid); if (!l) return;
     const p = RF.byId[l.pid], h = last(l.pid), have = S.inv[l.pid] || 0, after = S.bal - l.price;
     RF.openModal(`<div class="det">${RF.cardHTML(l.pid, { base: true })}<div><h3>${esc(p.name)}</h3><p>${rn(p.rarity)} · ${RF.cat.posName[p.pos]} · #${p.number}</p>
-      <p style="margin-top:6px">판매자 ${esc(l.seller)}${have ? `<br>이미 ${have}장 보유 (중복 시 강화 +2%)` : '<br>새로운 선수예요!'}</p></div></div>
+      <p style="margin-top:6px">${l.sys ? '🏟️ 구단 오늘의 특가 (매일 5명, 자정에 교체)' : '판매자 ' + esc(l.seller)}${have ? `<br>이미 ${have}장 보유 (중복 시 강화 +2%)` : '<br>새로운 선수예요!'}</p></div></div>
       ${statBars(l.pid)}
       <div class="mk-deal"><div><small>가격</small><b>${won(l.price)}</b></div><div><small>${h ? '최근 거래가' : '거래 기록'}</small><b>${h ? won(h.p) : '없음'}</b></div><div><small>구매 후 잔액</small><b class="${after < 0 ? 'neg' : ''}">${after < 0 ? '부족' : won(after)}</b></div></div>
       <button id="mkBuy" class="btn primary big" style="width:100%" ${after < 0 ? 'disabled' : ''}>${after < 0 ? '잔액이 부족해요' : `💸 ${won(l.price)}에 영입하기`}</button>`);
