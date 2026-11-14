@@ -108,6 +108,7 @@ const io = new Server(server, {
   try { const t = await accounts.grantTier(ADMIN_ID_, 33, 'grantedTop'); console.log('[지급] 관리자 티어 승엄급:', t.ok ? (t.already ? '이미 지급됨' : '완료') : '계정 없음'); } catch (e) { console.error('[지급] 오류', e.message); }
   try { const h = await accounts.grantItem(ADMIN_ID_, 'X77', 'grantedHid'); console.log('[지급] 관리자 문서경:', h.ok ? (h.already ? '이미 지급됨' : '완료') : '계정 없음'); } catch (e) { console.error('[지급] 오류', e.message); }
   try { const r = await accounts.revokeItemByNick('jong', 'X77', 'revokedHid'); console.log('[회수] jong 문서경:', r.ok ? (r.already ? '이미 처리됨' : r.had ? '회수 완료' : '보유하지 않음') : `실패 (일치하는 계정 ${r.found}개)`); } catch (e) { console.error('[회수] 오류', e.message); }
+  try { const g = await accounts.grantRandomByNick('jong', 'myth', 'grantedMyth1'); console.log('[지급] jong 랜덤 신화:', g.ok ? (g.already ? '이미 지급됨 ' : '지급 완료 ') + g.pid : `실패 (일치하는 계정 ${g.found}개)`); } catch (e) { console.error('[지급] 오류', e.message); }
   try { // 운영자 요청: 닉네임 skmoon 계정에 모든 캐릭터 1장씩 (1회성)
     const g = await accounts.grantAllByNick('skmoon');
     console.log('[지급] skmoon:', g.ok ? (g.already ? '이미 지급됨' : '모든 캐릭터 지급 완료') : `실패 (일치하는 계정 ${g.found}개)`);

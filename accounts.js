@@ -297,6 +297,25 @@ class Accounts {
     return n;
   }
 
+  /** 운영자 요청 1회성: 해당 등급에서 무작위 1명 지급 (아직 없는 캐릭터 우선, flag 로 한 번만). 결과 { ok, pid } */
+  async grantRandomByNick(nick, rarity, flag) {
+    nick = String(nick).toLowerCase();
+    let ids = await this.store.findByNick(nick);
+    if (await this.store.get('u-' + nick) && !ids.includes('u-' + nick)) ids = [...ids, 'u-' + nick];
+    ids = [...new Set(ids)]; if (ids.includes('u-' + nick)) ids = ['u-' + nick];
+    if (ids.length !== 1) return { ok: false, found: ids.length };
+    const id = ids[0];
+    return this.store.txn([id], (m) => {
+      const a = m[id]; if (!a) return { ok: false, found: 0 };
+      if (a[flag]) return { ok: true, already: true, id, pid: a[flag] };
+      const pool = C.CATALOG.filter((p) => p.rarity === rarity && !p.starter && !p.hidden || (p.rarity === rarity && p.hidden === undefined));
+      const fresh = pool.filter((p) => !(a.inv[p.id] > 0));
+      const pick = (fresh.length ? fresh : pool)[require('crypto').randomInt(0, (fresh.length ? fresh : pool).length)];
+      a.inv[pick.id] = Math.min(9999, (a.inv[pick.id] || 0) + 1); a[flag] = pick.id;
+      return { ok: true, id, pid: pick.id };
+    });
+  }
+
   async grantAllByNick(nick) {
     nick = String(nick).toLowerCase();
     let ids = await this.store.findByNick(nick);
