@@ -170,6 +170,10 @@ const bal = async (u) => (await accounts.get(u.id)).bal;
   const P = await connect(uX);
   const pr = await P.send('room:practice', { lineup: lineA }); assert(pr.ok); await flush(); run(60 * 5);
   assert(P.got('snap').length > 100); ok('CPU 연습 경기 진행');
+  { const m = game.rooms.get(pr.code).match; const ids = (side) => m.players.filter((p) => p.side === side).map((p) => p.id);
+    assert.deepStrictEqual(ids(1), ids(0)); assert.deepStrictEqual(ids(0), lineA); ok('CPU는 내 구단과 똑같은 선수로 싸운다');
+    const gk0 = m.players[0], fw0 = m.players[4]; assert.strictEqual(gk0.pos, 'GK');
+    const base = (p) => 115 + p.st.spd * 0.95; assert(Math.abs(gk0.maxSpd - base(gk0) * 0.7) < 1e-6 && Math.abs(fw0.maxSpd - base(fw0)) < 1e-6); ok('골키퍼 이동 속도 30% 감소'); }
   const room3 = game.rooms.get(pr.code); room3.match.score = [2, 0]; room3.match.timeLeft = 0.01; P.clear(); run(5); await flush();
   const endP = P.got('match:end').pop();
   assert(endP.winner === 0 && endP.reward.amount === 3000 && endP.reward.bal === 3000); assert.strictEqual(await bal(uX), 3000); ok('CPU를 이기면 서버 DB에 +3,000원 (0 → 3,000)');

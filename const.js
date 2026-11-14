@@ -16,6 +16,7 @@ module.exports = {
   BALL_FRICTION: 0.85,   // 지수 감쇠 계수 (1/s)
   TEAM_SIZE: 6,
   PLAYER_SPEED_SCALE: 0.66, // 모든 선수 이동 속도 배율 (1.0 = 이전 속도) — 단순/느리게
+  GK_SPEED_MUL: 0.7,      // 골키퍼 이동 속도 배율 (30% 감소)
   SPRINT_MUL: 1.2,        // 달리기 배율
   BOT_SKILL: 0.55,        // CPU 상대 AI 실력 (0~1, 낮을수록 멍청)
   MATE_SKILL: 0.75,       // 내 팀 AI 팀원 실력

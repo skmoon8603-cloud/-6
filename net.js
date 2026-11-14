@@ -154,8 +154,9 @@ function attach(io, { accounts, auth, autoloop = true }) {
         room.escrowed = true;
       }
       const [a, b] = room.players;
-      const lineups = [a.lineup, room.practice ? C.botLineup() : b.lineup];
-      const invs = [a.inv, room.practice ? {} : b.inv];
+      // CPU 연습경기: 상대 CPU는 내 구단과 똑같은 선수(같은 강화 레벨)로 싸운다
+      const lineups = [a.lineup, room.practice ? a.lineup.slice() : b.lineup];
+      const invs = [a.inv, room.practice ? a.inv : b.inv];
       room.match = new Match({ lineups, invs, bots: [false, room.practice], seconds: room.seconds });
       room.state = 'match'; room.lastResult = null; room.pauseDeadline = 0; room.concluded = false;
       room.players.forEach((p) => { p.ready = false; });

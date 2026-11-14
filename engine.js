@@ -51,7 +51,7 @@ class Match {
           i: side * K.TEAM_SIZE + slot, side, slot, pos: C.SLOTS[slot], st, id,
           x: 0, y: 0, vx: 0, vy: 0, ang: side === 0 ? 0 : Math.PI, stam: 100, tired: false,
           kickCd: 0, kickAnim: 0, tackleCd: 0, hold: 0, skill: o.bots[side] ? K.BOT_SKILL : K.MATE_SKILL, aiNoise: 0, think: 0, dx: 0, dy: 0, sp: false, boost: 1, catchCd: 0, diving: 0,
-          maxSpd: 115 + st.spd * 0.95,
+          maxSpd: (115 + st.spd * 0.95) * (C.SLOTS[slot] === 'GK' ? K.GK_SPEED_MUL : 1),
         };
         this.players.push(p);
         this.roster[side].push({ id, name: meta.name, num: meta.number, pos: C.SLOTS[slot], rar: meta.rarity, c1: meta.c1, c2: meta.c2, ovr: meta.ovr });
