@@ -142,13 +142,14 @@ function http(app, { store, auth, accounts }) {
       if (!rank.data || Date.now() - rank.t > 20000) {
         const rows = (await store.listAll())
           .filter((d) => d && typeof d.id === 'string' && d.id.startsWith('__rpg:') && d.save && typeof d.save === 'object')
-          .map((d) => ({ uid: d.uid, name: cleanName(d.save.name) || '모험가', lv: Math.round(num(d.save.lv, 1, 999)), exp: num(d.save.exp, 0, 1e12), gold: Math.round(num(d.save.gold, 0, 1e12)), cls: word(d.save.cls), job: word(d.save.job) }));
+          .map((d) => ({ uid: d.uid, name: cleanName(d.save.name) || '모험가', lv: Math.round(num(d.save.lv, 1, 999)), exp: num(d.save.exp, 0, 1e12), gold: Math.round(num(d.save.gold, 0, 1e12)), cls: word(d.save.cls), job: word(d.save.job), pvw: Math.round(num(d.save.pvw, 0, 1e6)), pvl: Math.round(num(d.save.pvl, 0, 1e6)) }));
         const gold = rows.slice().sort((a, b) => b.gold - a.gold || b.lv - a.lv).slice(0, 10);
         const lv = rows.slice().sort((a, b) => b.lv - a.lv || b.exp - a.exp).slice(0, 10);
+        const pv = rows.filter((r) => r.pvw > 0).sort((a, b) => b.pvw - a.pvw || a.pvl - b.pvl).slice(0, 10);
         const nicks = new Map();
-        for (const r of [...gold, ...lv]) if (!nicks.has(r.uid)) { const a = await accounts.get(r.uid); nicks.set(r.uid, a ? a.nick : ''); }
-        const out = (l) => l.map((r) => ({ name: r.name, nick: nicks.get(r.uid) || '', lv: r.lv, gold: r.gold, cls: r.cls, job: r.job }));
-        rank = { t: Date.now(), data: { gold: out(gold), lv: out(lv), total: rows.length } };
+        for (const r of [...gold, ...lv, ...pv]) if (!nicks.has(r.uid)) { const a = await accounts.get(r.uid); nicks.set(r.uid, a ? a.nick : ''); }
+        const out = (l) => l.map((r) => ({ name: r.name, nick: nicks.get(r.uid) || '', lv: r.lv, gold: r.gold, cls: r.cls, job: r.job, pvw: r.pvw, pvl: r.pvl }));
+        rank = { t: Date.now(), data: { gold: out(gold), lv: out(lv), pv: out(pv), total: rows.length } };
       }
       res.json(rank.data);
     } catch (e) { console.error('[rpg]', e && e.stack || e); res.status(500).json({ error: 'server_error' }); }
