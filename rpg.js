@@ -15,6 +15,7 @@ const docId = (uid) => '__rpg:' + uid;
 const GRANTS = [
   { id: 'lv20-taeheeim-1115', nick: '이태희', name: '이태희임', lv: 20 }, // 계정 닉네임 「이태희」(캐릭터 이름 「이태희임」) 레벨 20
 ];
+GRANTS.push({ id: 'title-lost-taeheeim', nick: '이태희', name: '이태희임', title: 'lost', keep: true }); // 칭호 「최초로 계정이 날라간 자」 (새 게임을 해도 유지)
 const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
@@ -107,7 +108,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => (g.nick === a.nick || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv }));
+    const grants = GRANTS.filter((g) => (g.nick === a.nick || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv, title: g.title }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
@@ -122,7 +123,7 @@ function http(app, { store, auth, accounts }) {
 
   app.post('/api/rpg/grantdone', wrap(async (req, uid) => {
     const gid = String((req.body && req.body.id) || '');
-    if (!GRANTS.some((g) => g.id === gid)) return { status: 400, body: { error: 'bad_grant' } };
+    if (!GRANTS.some((g) => g.id === gid && !g.keep)) return { status: 400, body: { error: 'bad_grant' } };
     const id = grantDoc(uid);
     await store.txn([id], (m) => { const d = m[id] || { id, done: [] }; if (!d.done.includes(gid)) d.done.push(gid); m[id] = d; });
     return { body: { ok: true } };
