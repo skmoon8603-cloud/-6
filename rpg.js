@@ -16,6 +16,7 @@ const GRANTS = [
   { id: 'lv20-taeheeim-1115', nick: '이태희', name: '이태희임', lv: 20 }, // 계정 닉네임 「이태희」(캐릭터 이름 「이태희임」) 레벨 20
 ];
 GRANTS.push({ id: 'title-lost-taeheeim', nick: '이태희', name: '이태희임', title: 'lost', keep: true }); // 칭호 「최초로 계정이 날라간 자」 (새 게임을 해도 유지)
+GRANTS.push({ id: 'penalty-hanback-1115', nick: 'hanback0820', name: '왕정훈 찐계', setLv: 30, sp: 0, ap: 0, goldMul: 0.5 }); // 레벨 30으로, 남은 스킬·능력 포인트 회수, 골드 절반
 const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
@@ -108,7 +109,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => (g.nick === a.nick || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv, title: g.title }));
+    const grants = GRANTS.filter((g) => (g.nick === a.nick || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, sp: g.sp, ap: g.ap, goldMul: g.goldMul }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
@@ -225,11 +226,19 @@ function attach(io, { auth, accounts, store }) {
     socket.on('ev', (d) => {
       const m = socket.data.map;
       if (!m || !d || typeof d !== 'object' || Array.isArray(d) || flood()) return;
-      try { if (JSON.stringify(d).length > 2500) return; } catch (e) { return; }
+      try { if (JSON.stringify(d).length > (d.k === 'sk' ? 7000 : 2500)) return; } catch (e) { return; }
       if (d.k === 'hit') { if (amHost()) return; const h = byUid.get(hosts.get(m)); if (h && h.data.map === m) { d.from = uid; h.emit('ev', d); } }
       else if (d.k === 'kill' || d.k === 'ep') { if (amHost()) socket.to('m:' + m).emit('ev', d); }
+      else if (d.k === 'sk') { d.from = uid; socket.to('m:' + m).volatile.emit('ev', d); } // 다른 사람에게 내 스킬 연출 보여주기
       else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); } // 마을 할머니 추격 장면 공유
       else if (d.k === 'dmg') { if (!amHost()) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('ev', d); }
+    });
+    // 지도: 접속한 모든 사람의 위치 (1초에 한 번까지)
+    socket.on('who', (cb) => {
+      const now = Date.now(); if (typeof cb !== 'function' || now - (socket.data.wt || 0) < 700) return; socket.data.wt = now;
+      const list = [];
+      for (const s of byUid.values()) { const q = s.data.p; if (q && s.data.map && list.length < 80) list.push([q[0], q[1], q[5], s.data.map, q[6], q[7]]); }
+      cb(list);
     });
     // 채팅: 같은 맵 사람들 머리 위에 뜬다 (0.8초에 한 번)
     socket.on('c', (t) => {
