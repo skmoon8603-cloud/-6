@@ -123,7 +123,7 @@ const io = new Server(server, {
   flashNet.attach(io, { isAdmin });
   presence = presenceNet.attach(io, { accounts });
   bounce = bounceNet.attach(io, { accounts });
-  rpg.attach(io, { auth, accounts });
+  rpg.attach(io, { auth, accounts, store });
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
 })().catch((e) => { console.error('시작 실패', e); process.exit(1); });
 

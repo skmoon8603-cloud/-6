@@ -24,6 +24,46 @@ function limited(key, max, windowMs) {
   return h.n > max;
 }
 
+/**
+ * 계정 연동(1회): 화면에 같은 닉네임으로 보이는 계정이 둘일 때, RPG 캐릭터가 있는 쪽의 세이브를
+ * 축구 게임을 실제로 하던 계정(뽑기·보관함 기록이 더 많은 쪽)으로 옮긴다. 원래 세이브는 '__rpgbak:<계정>' 에 백업.
+ */
+let linkStatus = '';
+const shownNick = (a) => String(a.nickSet && a.nick ? a.nick : a.id.startsWith('u-') ? a.id.slice(2) : a.nick || 'PLAYER');
+async function linkByNick(store, nick) {
+  const flag = '__rpglink:' + nick;
+  const done = await store.get(flag);
+  if (done) return done.result;
+  const low = nick.toLowerCase();
+  const cands = (await store.listAll()).filter((a) => a && typeof a.id === 'string' && !a.id.startsWith('__') && shownNick(a).toLowerCase() === low);
+  const foot = (c) => (c.pulls || 0) + Object.keys(c.inv || {}).length;
+  const docs = new Map();
+  for (const c of cands) docs.set(c.id, await store.get(docId(c.id)));
+  const lvOf = (c) => { const d = docs.get(c.id); return d && d.save ? Number(d.save.lv) || 1 : 0; };
+  let result;
+  if (!cands.length) return 'no_account';
+  if (cands.length === 1) result = 'same_account';
+  else {
+    const src = cands.slice().sort((a, b) => lvOf(b) - lvOf(a))[0];
+    const dst = cands.filter((c) => c !== src).sort((a, b) => foot(b) - foot(a) || (a.created || 0) - (b.created || 0))[0];
+    if (!lvOf(src)) return 'no_save';
+    if (foot(src) >= foot(dst)) result = 'already_on_football_account';
+    else if (lvOf(dst) >= lvOf(src)) return 'ambiguous';
+    else {
+      const sId = docId(src.id), dId = docId(dst.id), b1 = '__rpgbak:' + src.id, b2 = '__rpgbak:' + dst.id, t = Date.now();
+      await store.txn([sId, dId, b1, b2], (m) => {
+        m[b1] = { id: b1, uid: src.id, save: m[sId].save, t };
+        if (m[dId]) m[b2] = { id: b2, uid: dst.id, save: m[dId].save, t };
+        m[dId] = { id: dId, uid: dst.id, save: m[sId].save, t };
+      });
+      await store.remove(sId);
+      result = 'moved';
+    }
+  }
+  await store.txn([flag], (m) => { m[flag] = { id: flag, result, t: Date.now() }; });
+  return result;
+}
+
 /** REST + 화면 제공 */
 function http(app, { store, auth, accounts }) {
   // 다른 주소(GitHub Pages)에서 열어도 로그인·저장이 되도록 허용 (쿠키가 아닌 토큰 방식이라 안전)
@@ -53,7 +93,7 @@ function http(app, { store, auth, accounts }) {
     } catch (e) { console.error('[rpg]', e && e.stack || e); res.status(500).json({ error: 'server_error' }); }
   };
 
-  app.get('/api/rpg/ping', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ rpg: true }); });
+  app.get('/api/rpg/ping', (_req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ rpg: true, link: linkStatus }); });
   app.get('/api/rpg/save', wrap(async (_req, uid) => {
     const a = await accounts.get(uid);
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
@@ -116,7 +156,8 @@ function http(app, { store, auth, accounts }) {
 }
 
 /** 실시간: 같은 맵의 다른 플레이어 보여주기 */
-function attach(io, { auth, accounts }) {
+function attach(io, { auth, accounts, store }) {
+  if (store) linkByNick(store, '주시완').then((r) => { linkStatus = r; console.log('[rpg] 주시완 계정 연동:', r); }).catch((e) => { linkStatus = 'error'; console.error('[rpg] 연동 오류', e.message); });
   const ns = io.of('/rpg');
   const byUid = new Map(); // uid -> socket
   ns.use(async (socket, next) => {
@@ -157,4 +198,4 @@ function attach(io, { auth, accounts }) {
   return { stop() { clearInterval(timer); }, count: () => byUid.size };
 }
 
-module.exports = { http, attach, docId };
+module.exports = { http, attach, docId, linkByNick };
