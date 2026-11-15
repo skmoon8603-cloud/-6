@@ -16,7 +16,10 @@ const GRANTS = [
   { id: 'lv20-taeheeim-1115', nick: '이태희', name: '이태희임', lv: 20 }, // 계정 닉네임 「이태희」(캐릭터 이름 「이태희임」) 레벨 20
 ];
 GRANTS.push({ id: 'title-lost-taeheeim', nick: '이태희', name: '이태희임', title: 'lost', keep: true }); // 칭호 「최초로 계정이 날라간 자」 (새 게임을 해도 유지)
-GRANTS.push({ id: 'penalty-hanback-1115', nick: 'hanback0820', name: '왕정훈 찐계', setLv: 30, sp: 0, ap: 0, goldMul: 0.5 }); // 레벨 30으로, 남은 스킬·능력 포인트 회수, 골드 절반
+// (취소) 「왕정훈 찐계」에 잘못 내린 조정. 이미 적용됐다면 아래 복구가 한 번 들어간다.
+GRANTS.push({ id: 'restore-hanback-1116', nick: 'hanback0820', name: '왕정훈 찐계', requires: 'penalty-hanback-1115', setLv: 46, goldMul: 2, recalc: true });
+// 「왕정훈 본계」: 레벨 -8 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
+GRANTS.push({ id: 'penalty-wjh-main-1116', name: '왕정훈 본계', lvAdd: -8, spDown: 8, apDown: 24, goldMul: 0.5 });
 const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
@@ -109,7 +112,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => (g.nick === a.nick || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, sp: g.sp, ap: g.ap, goldMul: g.goldMul }));
+    const grants = GRANTS.filter((g) => ((g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, recalc: g.recalc }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
@@ -180,10 +183,13 @@ function attach(io, { auth, accounts, store }) {
   if (store) linkByNick(store, '주시완').then((r) => { linkStatus = r; console.log('[rpg] 주시완 계정 연동:', r); }).catch((e) => { linkStatus = 'error'; console.error('[rpg] 연동 오류', e.message); });
   const ns = io.of('/rpg');
   const byUid = new Map(); // uid -> socket
+  const duels = new Map(); let pend = []; // 결투 신청
   // 같이 사냥: 맵마다 '방장' 한 명이 몬스터를 움직이고, 나머지는 방장이 보내주는 몬스터 상태를 보며 때린 내용을 방장에게 보낸다.
   const hosts = new Map(); // map -> uid
+  const bossDead = new Map(); // map -> 보스가 쓰러진 시각 (다시 나타나기까지 10초)
+  const bd = (m) => (bossDead.has(m) ? Date.now() - bossDead.get(m) : null);
   const hostOk = (m) => { const s = byUid.get(hosts.get(m)); return !!(s && s.data.map === m); };
-  const pickHost = (m) => { if (hostOk(m)) return; hosts.delete(m); for (const s of byUid.values()) if (s.data.map === m) { hosts.set(m, s.data.uid); s.emit('host', { m, h: 1 }); return; } };
+  const pickHost = (m) => { if (hostOk(m)) return; hosts.delete(m); for (const s of byUid.values()) if (s.data.map === m) { hosts.set(m, s.data.uid); s.emit('host', { m, h: 1, bd: bd(m) }); return; } };
   ns.use(async (socket, next) => {
     try {
       const s = auth.verifySession(socket.handshake.auth && socket.handshake.auth.token);
@@ -210,11 +216,12 @@ function attach(io, { auth, accounts, store }) {
         socket.join('m:' + map); socket.data.map = map;
         if (old) pickHost(old);
         if (!hostOk(map)) hosts.set(map, uid);
-        socket.emit('host', { m: map, h: hosts.get(map) === uid ? 1 : 0 });
+        socket.emit('host', { m: map, h: hosts.get(map) === uid ? 1 : 0, bd: bd(map) });
       }
       socket.data.p = [
         uid, cleanName(d.n) || socket.data.nick, word(d.r), word(d.c), word(d.j), Math.round(num(d.l, 1, 999)),
         Math.round(num(d.x, 0, 9999)), Math.round(num(d.y, 0, 9999)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar), d.t === 'admin' && uid !== ADMIN_ID ? '' : itemId(d.t), // 칭호 (관리자 칭호는 관리자만)
+        Math.round(num(d.hp, 0, 100)), // 체력 %
       ];
     });
     const amHost = () => !!socket.data.map && hosts.get(socket.data.map) === uid;
@@ -228,10 +235,37 @@ function attach(io, { auth, accounts, store }) {
       if (!m || !d || typeof d !== 'object' || Array.isArray(d) || flood()) return;
       try { if (JSON.stringify(d).length > (d.k === 'sk' ? 7000 : 2500)) return; } catch (e) { return; }
       if (d.k === 'hit') { if (amHost()) return; const h = byUid.get(hosts.get(m)); if (h && h.data.map === m) { d.from = uid; h.emit('ev', d); } }
-      else if (d.k === 'kill' || d.k === 'ep') { if (amHost()) socket.to('m:' + m).emit('ev', d); }
+      else if (d.k === 'kill' || d.k === 'ep') { if (amHost()) { if (d.k === 'kill' && d.bs) bossDead.set(m, Date.now()); socket.to('m:' + m).emit('ev', d); } }
+      else if (d.k === 'pvh') { if (!m.startsWith('arena')) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) { d.from = uid; t.emit('ev', d); } } // 결투: 상대에게 피해
+      else if (d.k === 'pvend') { if (m.startsWith('arena')) socket.to('m:' + m).emit('ev', { k: 'pvend', from: uid }); } // 결투: 내가 졌다
       else if (d.k === 'sk') { d.from = uid; socket.to('m:' + m).volatile.emit('ev', d); } // 다른 사람에게 내 스킬 연출 보여주기
       else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); } // 마을 할머니 추격 장면 공유
       else if (d.k === 'dmg') { if (!amHost()) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('ev', d); }
+    });
+    // 결투 신청
+    socket.on('duel:req', () => {
+      if (socket.data.map !== 'village') return;
+      const now = Date.now();
+      for (const [k, D] of duels) if (now - D.t > 60000) duels.delete(k);
+      pend = pend.filter((q) => now - q.t < 15000 && q.uid !== uid && byUid.get(q.uid) && byUid.get(q.uid).data.map === 'village');
+      const other = pend.shift();
+      if (!other) { pend.push({ uid, t: now }); socket.emit('duel:wait'); return; }
+      const id = Math.random().toString(36).slice(2, 8);
+      duels.set(id, { a: other.uid, b: uid, yes: new Set(), t: now });
+      const nameOf = (u) => { const q = byUid.get(u); return (q && q.data.p && q.data.p[1]) || (q && q.data.nick) || '?'; };
+      byUid.get(other.uid).emit('duel:ask', { id, op: nameOf(uid) });
+      socket.emit('duel:ask', { id, op: nameOf(other.uid) });
+    });
+    socket.on('duel:ans', (d) => {
+      const id = String((d && d.id) || ''), D = duels.get(id);
+      if (!D || (D.a !== uid && D.b !== uid)) return;
+      const both = [D.a, D.b].map((u) => byUid.get(u));
+      if (!d.yes) { duels.delete(id); both.forEach((q) => q && q.emit('duel:cancel')); return; }
+      D.yes.add(uid);
+      if (D.yes.size < 2) return;
+      duels.delete(id);
+      const key = 'arena' + Array.from({ length: 5 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
+      both.forEach((q, i) => q && q.emit('duel:go', { arena: key, side: i }));
     });
     // 지도: 접속한 모든 사람의 위치 (1초에 한 번까지)
     socket.on('who', (cb) => {
