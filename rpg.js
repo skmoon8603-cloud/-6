@@ -13,7 +13,7 @@ const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (RPG에
 const docId = (uid) => '__rpg:' + uid;
 // 운영자 지급: 해당 계정이 다음에 게임을 시작할 때 한 번만 적용된다 (받은 기록은 '__rpggrant:<계정>' 에 남는다)
 const GRANTS = [
-  { id: 'lv20-taeheeim-1115', nick: '이태희임', lv: 20 }, // 「이태희임」 계정 레벨 20
+  { id: 'lv20-taeheeim-1115', nick: '이태희', name: '이태희임', lv: 20 }, // 계정 닉네임 「이태희」(캐릭터 이름 「이태희임」) 레벨 20
 ];
 const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
@@ -107,7 +107,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => g.nick === a.nick && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv }));
+    const grants = GRANTS.filter((g) => (g.nick === a.nick || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
