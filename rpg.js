@@ -212,7 +212,7 @@ function attach(io, { auth, accounts, store }) {
       }
       socket.data.p = [
         uid, cleanName(d.n) || socket.data.nick, word(d.r), word(d.c), word(d.j), Math.round(num(d.l, 1, 999)),
-        Math.round(num(d.x, 0, 9999)), Math.round(num(d.y, 0, 9999)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar),
+        Math.round(num(d.x, 0, 9999)), Math.round(num(d.y, 0, 9999)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar), d.t === 'admin' && uid !== ADMIN_ID ? '' : itemId(d.t), // 칭호 (관리자 칭호는 관리자만)
       ];
     });
     const amHost = () => !!socket.data.map && hosts.get(socket.data.map) === uid;
