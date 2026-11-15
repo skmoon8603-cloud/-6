@@ -70,6 +70,27 @@ function http(app, { store, auth, accounts }) {
     return { body: { ok: true, t } };
   }));
 
+  // 순위: 돈·레벨 상위 10명 (20초 캐시, 로그인 없이 볼 수 있다)
+  let rank = { t: 0, data: null };
+  app.get('/api/rpg/rank', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      if (limited('rk:' + req.ip, 30, 10000)) return res.status(429).json({ error: 'too_many_requests' });
+      if (!rank.data || Date.now() - rank.t > 20000) {
+        const rows = (await store.listAll())
+          .filter((d) => d && typeof d.id === 'string' && d.id.startsWith('__rpg:') && d.save && typeof d.save === 'object')
+          .map((d) => ({ uid: d.uid, name: cleanName(d.save.name) || '모험가', lv: Math.round(num(d.save.lv, 1, 999)), exp: num(d.save.exp, 0, 1e12), gold: Math.round(num(d.save.gold, 0, 1e12)), cls: word(d.save.cls), job: word(d.save.job) }));
+        const gold = rows.slice().sort((a, b) => b.gold - a.gold || b.lv - a.lv).slice(0, 10);
+        const lv = rows.slice().sort((a, b) => b.lv - a.lv || b.exp - a.exp).slice(0, 10);
+        const nicks = new Map();
+        for (const r of [...gold, ...lv]) if (!nicks.has(r.uid)) { const a = await accounts.get(r.uid); nicks.set(r.uid, a ? a.nick : ''); }
+        const out = (l) => l.map((r) => ({ name: r.name, nick: nicks.get(r.uid) || '', lv: r.lv, gold: r.gold, cls: r.cls, job: r.job }));
+        rank = { t: Date.now(), data: { gold: out(gold), lv: out(lv), total: rows.length } };
+      }
+      res.json(rank.data);
+    } catch (e) { console.error('[rpg]', e && e.stack || e); res.status(500).json({ error: 'server_error' }); }
+  });
+
   // 화면: GitHub Pages 의 index.html 을 1분 캐시로 내려준다. 나머지 파일(음악 등)은 Pages 로 넘긴다.
   let page = { html: '', t: 0 };
   const loadPage = async () => {
