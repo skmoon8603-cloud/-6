@@ -13,6 +13,8 @@ const docId = (uid) => '__rpg:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
 const word = (v) => (typeof v === 'string' && /^[a-z]{1,10}$/.test(v) ? v : '');
+const itemId = (v) => (typeof v === 'string' && /^[a-z0-9_]{1,14}$/.test(v) ? v : '');
+const cleanChat = (t) => String(t == null ? '' : t).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 60);
 const cleanName = (n) => String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 8);
 
 const hits = new Map();
@@ -160,6 +162,10 @@ function attach(io, { auth, accounts, store }) {
   if (store) linkByNick(store, '주시완').then((r) => { linkStatus = r; console.log('[rpg] 주시완 계정 연동:', r); }).catch((e) => { linkStatus = 'error'; console.error('[rpg] 연동 오류', e.message); });
   const ns = io.of('/rpg');
   const byUid = new Map(); // uid -> socket
+  // 같이 사냥: 맵마다 '방장' 한 명이 몬스터를 움직이고, 나머지는 방장이 보내주는 몬스터 상태를 보며 때린 내용을 방장에게 보낸다.
+  const hosts = new Map(); // map -> uid
+  const hostOk = (m) => { const s = byUid.get(hosts.get(m)); return !!(s && s.data.map === m); };
+  const pickHost = (m) => { if (hostOk(m)) return; hosts.delete(m); for (const s of byUid.values()) if (s.data.map === m) { hosts.set(m, s.data.uid); s.emit('host', { m, h: 1 }); return; } };
   ns.use(async (socket, next) => {
     try {
       const s = auth.verifySession(socket.handshake.auth && socket.handshake.auth.token);
@@ -180,13 +186,41 @@ function attach(io, { auth, accounts, store }) {
       if (!d || typeof d !== 'object') return;
       const map = typeof d.m === 'string' && MAPS.test(d.m) ? d.m : '';
       if (!map) return;
-      if (map !== socket.data.map) { if (socket.data.map) socket.leave('m:' + socket.data.map); socket.join('m:' + map); socket.data.map = map; }
+      if (map !== socket.data.map) {
+        const old = socket.data.map;
+        if (old) socket.leave('m:' + old);
+        socket.join('m:' + map); socket.data.map = map;
+        if (old) pickHost(old);
+        if (!hostOk(map)) hosts.set(map, uid);
+        socket.emit('host', { m: map, h: hosts.get(map) === uid ? 1 : 0 });
+      }
       socket.data.p = [
         uid, cleanName(d.n) || socket.data.nick, word(d.r), word(d.c), word(d.j), Math.round(num(d.l, 1, 999)),
-        Math.round(num(d.x, 0, 9999)), Math.round(num(d.y, 0, 9999)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0,
+        Math.round(num(d.x, 0, 9999)), Math.round(num(d.y, 0, 9999)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar),
       ];
     });
-    socket.on('disconnect', () => { if (byUid.get(uid) === socket) byUid.delete(uid); });
+    const amHost = () => !!socket.data.map && hosts.get(socket.data.map) === uid;
+    let evN = 0, evT = 0;
+    const flood = () => { const now = Date.now(); if (now - evT > 1000) { evT = now; evN = 0; } return ++evN > 300; };
+    // 방장 → 같은 맵 사람들: 몬스터 상태
+    socket.on('es', (l) => { if (!amHost() || !Array.isArray(l) || l.length > 150 || flood()) return; socket.to('m:' + socket.data.map).volatile.emit('es', l); });
+    // 전투 이벤트 중계
+    socket.on('ev', (d) => {
+      const m = socket.data.map;
+      if (!m || !d || typeof d !== 'object' || Array.isArray(d) || flood()) return;
+      try { if (JSON.stringify(d).length > 2500) return; } catch (e) { return; }
+      if (d.k === 'hit') { if (amHost()) return; const h = byUid.get(hosts.get(m)); if (h && h.data.map === m) { d.from = uid; h.emit('ev', d); } }
+      else if (d.k === 'kill' || d.k === 'ep') { if (amHost()) socket.to('m:' + m).emit('ev', d); }
+      else if (d.k === 'dmg') { if (!amHost()) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('ev', d); }
+    });
+    // 채팅: 같은 맵 사람들 머리 위에 뜬다 (0.8초에 한 번)
+    socket.on('c', (t) => {
+      const m = socket.data.map, now = Date.now(), text = cleanChat(t);
+      if (!m || !text || now - (socket.data.ct || 0) < 800) return;
+      socket.data.ct = now;
+      socket.to('m:' + m).emit('c', { u: uid, n: (socket.data.p && socket.data.p[1]) || socket.data.nick, t: text });
+    });
+    socket.on('disconnect', () => { const m = socket.data.map; if (byUid.get(uid) === socket) byUid.delete(uid); if (m) pickHost(m); });
   });
   const timer = setInterval(() => {
     const maps = new Map();
