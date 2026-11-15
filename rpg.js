@@ -9,6 +9,7 @@
 const PAGES = (process.env.RPG_PAGES || 'https://skmoon8603-cloud.github.io/dobak-rpg/').replace(/\/*$/, '/');
 const ORIGINS = (process.env.RPG_ORIGINS || 'https://skmoon8603-cloud.github.io').split(',').map((s) => s.trim()).filter(Boolean);
 const MAX_SAVE = 24000;
+const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (RPG에서 관리자 보상을 받는다)
 const docId = (uid) => '__rpg:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
@@ -100,7 +101,7 @@ function http(app, { store, auth, accounts }) {
     const a = await accounts.get(uid);
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
-    return { body: { id: uid, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
+    return { body: { id: uid, admin: uid === ADMIN_ID, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
     const save = req.body && req.body.save;
@@ -211,6 +212,7 @@ function attach(io, { auth, accounts, store }) {
       try { if (JSON.stringify(d).length > 2500) return; } catch (e) { return; }
       if (d.k === 'hit') { if (amHost()) return; const h = byUid.get(hosts.get(m)); if (h && h.data.map === m) { d.from = uid; h.emit('ev', d); } }
       else if (d.k === 'kill' || d.k === 'ep') { if (amHost()) socket.to('m:' + m).emit('ev', d); }
+      else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); } // 마을 할머니 추격 장면 공유
       else if (d.k === 'dmg') { if (!amHost()) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('ev', d); }
     });
     // 채팅: 같은 맵 사람들 머리 위에 뜬다 (0.8초에 한 번)
@@ -222,7 +224,9 @@ function attach(io, { auth, accounts, store }) {
     });
     socket.on('disconnect', () => { const m = socket.data.map; if (byUid.get(uid) === socket) byUid.delete(uid); if (m) pickHost(m); });
   });
+  let tick = 0;
   const timer = setInterval(() => {
+    if (++tick % 20 === 0) ns.volatile.emit('n', byUid.size); // 2초마다 전체 접속자 수
     const maps = new Map();
     for (const s of byUid.values()) { if (!s.data.p || !s.data.map) continue; let l = maps.get(s.data.map); if (!l) maps.set(s.data.map, l = []); l.push(s.data.p); }
     for (const [m, list] of maps) if (list.length > 1) ns.to('m:' + m).volatile.emit('ps', list.slice(0, 40));
