@@ -11,6 +11,11 @@ const ORIGINS = (process.env.RPG_ORIGINS || 'https://skmoon8603-cloud.github.io'
 const MAX_SAVE = 24000;
 const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (RPG에서 관리자 보상을 받는다)
 const docId = (uid) => '__rpg:' + uid;
+// 운영자 지급: 해당 계정이 다음에 게임을 시작할 때 한 번만 적용된다 (받은 기록은 '__rpggrant:<계정>' 에 남는다)
+const GRANTS = [
+  { id: 'lv20-taehee-1115', nick: 'dlxogml', lv: 20 }, // 이태희 캐릭터 레벨 20
+];
+const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
 const word = (v) => (typeof v === 'string' && /^[a-z]{1,10}$/.test(v) ? v : '');
@@ -101,7 +106,9 @@ function http(app, { store, auth, accounts }) {
     const a = await accounts.get(uid);
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
-    return { body: { id: uid, admin: uid === ADMIN_ID, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
+    const got = (await store.get(grantDoc(uid))) || { done: [] };
+    const grants = GRANTS.filter((g) => g.nick === a.nick && !got.done.includes(g.id)).map((g) => ({ id: g.id, lv: g.lv }));
+    return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
     const save = req.body && req.body.save;
@@ -111,6 +118,14 @@ function http(app, { store, auth, accounts }) {
     const id = docId(uid), t = Date.now();
     await store.txn([id], (m) => { m[id] = { id, uid, save, t }; });
     return { body: { ok: true, t } };
+  }));
+
+  app.post('/api/rpg/grantdone', wrap(async (req, uid) => {
+    const gid = String((req.body && req.body.id) || '');
+    if (!GRANTS.some((g) => g.id === gid)) return { status: 400, body: { error: 'bad_grant' } };
+    const id = grantDoc(uid);
+    await store.txn([id], (m) => { const d = m[id] || { id, done: [] }; if (!d.done.includes(gid)) d.done.push(gid); m[id] = d; });
+    return { body: { ok: true } };
   }));
 
   // 순위: 돈·레벨 상위 10명 (20초 캐시, 로그인 없이 볼 수 있다)
