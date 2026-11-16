@@ -188,6 +188,7 @@ function attach(io, { auth, accounts, store }) {
   // 마을 표지판: 관리자만 고칠 수 있고 모두에게 보인다 (계정 저장소의 '__rpgsigns' 문서에 저장)
   const SIGN_ID = '__rpgsigns'; const SIGN_MAPS = ['village', 'sea']; let signs = {};
   if (store) store.get(SIGN_ID).then((d) => { if (d && d.signs) signs = d.signs; }).catch(() => {});
+  const signSave = async () => { try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); } ns.emit('signs', signs); };
   const byUid = new Map(); // uid -> socket
   const duels = new Map(); let pend = []; // 결투 신청
   const trades = new Map(); // 거래
@@ -398,9 +399,24 @@ function attach(io, { auth, accounts, store }) {
     socket.on('sign:set', async (d) => {
       if (uid !== ADMIN_ID || !d || !SIGN_MAPS.includes(d.m)) return;
       const t = String(d.t || '').replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ').split('\n').slice(0, 6).map((x) => x.slice(0, 40)).join('\n').trim().slice(0, 200);
-      signs = { ...signs, [d.m]: { t, by: (socket.data.p && socket.data.p[1]) || '관리자', at: Date.now() } };
-      try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); }
-      ns.emit('signs', signs);
+      signs = { ...signs, [d.m]: { ...(signs[d.m] || {}), t, by: (socket.data.p && socket.data.p[1]) || '관리자', at: Date.now() } };
+      await signSave();
+    });
+    // 표지판 댓글: 한 사람당 표지판마다 1개 (다시 쓰면 수정), 본인 삭제 가능, 관리자는 아무 댓글이나 삭제
+    socket.on('sign:cmt', async (d) => {
+      if (!d || !SIGN_MAPS.includes(d.m) || flood()) return;
+      const now = Date.now(); if (now - (socket.data.cmtT || 0) < 3000) return socket.emit('tr:msg', '잠시 후 다시 써 주세요'); socket.data.cmtT = now;
+      const t = cleanChat(d.t).slice(0, 60); if (!t) return;
+      const S = { ...(signs[d.m] || { t: '' }) }; const c = { ...(S.c || {}) };
+      if (!c[uid] && Object.keys(c).length >= 300) return socket.emit('tr:msg', '댓글이 너무 많아요');
+      c[uid] = { n: (socket.data.p && socket.data.p[1]) || socket.data.nick || '?', t, at: now, ed: c[uid] ? 1 : 0 };
+      S.c = c; signs = { ...signs, [d.m]: S }; await signSave();
+    });
+    socket.on('sign:del', async (d) => {
+      if (!d || !SIGN_MAPS.includes(d.m)) return;
+      const who = d.u && uid === ADMIN_ID ? String(d.u) : uid;
+      const S = signs[d.m]; if (!S || !S.c || !S.c[who]) return;
+      const c = { ...S.c }; delete c[who]; signs = { ...signs, [d.m]: { ...S, c } }; await signSave();
     });
     socket.on('ann', (t) => {
       if (uid !== ADMIN_ID) return;
