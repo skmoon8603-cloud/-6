@@ -388,6 +388,13 @@ function attach(io, { auth, accounts, store }) {
       cb(list);
     });
     // 채팅: 같은 맵 사람들 머리 위에 뜬다 (0.8초에 한 번)
+    // 관리자 공지: 접속한 모든 사람 화면 위에 5초 동안 크게 띄운다
+    socket.on('ann', (t) => {
+      if (uid !== ADMIN_ID) return;
+      const now = Date.now(); if (now - (socket.data.annT || 0) < 3000) return; socket.data.annT = now;
+      const msg = String(t || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 60); if (!msg) return;
+      ns.emit('ann', { t: msg, by: (socket.data.p && socket.data.p[1]) || '관리자' });
+    });
     socket.on('c', (t) => {
       const m = socket.data.map, now = Date.now(), text = cleanChat(t);
       if (!m || !text || now - (socket.data.ct || 0) < 800) return;
