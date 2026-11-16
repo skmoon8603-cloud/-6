@@ -183,6 +183,9 @@ function http(app, { store, auth, accounts }) {
 function attach(io, { auth, accounts, store }) {
   if (store) linkByNick(store, '주시완').then((r) => { linkStatus = r; console.log('[rpg] 주시완 계정 연동:', r); }).catch((e) => { linkStatus = 'error'; console.error('[rpg] 연동 오류', e.message); });
   const ns = io.of('/rpg');
+  // 마을 표지판: 관리자만 고칠 수 있고 모두에게 보인다 (계정 저장소의 '__rpgsigns' 문서에 저장)
+  const SIGN_ID = '__rpgsigns'; const SIGN_MAPS = ['village', 'sea']; let signs = {};
+  if (store) store.get(SIGN_ID).then((d) => { if (d && d.signs) signs = d.signs; }).catch(() => {});
   const byUid = new Map(); // uid -> socket
   const duels = new Map(); let pend = []; // 결투 신청
   const trades = new Map(); // 거래
@@ -389,6 +392,14 @@ function attach(io, { auth, accounts, store }) {
     });
     // 채팅: 같은 맵 사람들 머리 위에 뜬다 (0.8초에 한 번)
     // 관리자 공지: 접속한 모든 사람 화면 위에 5초 동안 크게 띄운다
+    socket.emit('signs', signs);
+    socket.on('sign:set', async (d) => {
+      if (uid !== ADMIN_ID || !d || !SIGN_MAPS.includes(d.m)) return;
+      const t = String(d.t || '').replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ').split('\n').slice(0, 6).map((x) => x.slice(0, 40)).join('\n').trim().slice(0, 200);
+      signs = { ...signs, [d.m]: { t, by: (socket.data.p && socket.data.p[1]) || '관리자', at: Date.now() } };
+      try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); }
+      ns.emit('signs', signs);
+    });
     socket.on('ann', (t) => {
       if (uid !== ADMIN_ID) return;
       const now = Date.now(); if (now - (socket.data.annT || 0) < 3000) return; socket.data.annT = now;
