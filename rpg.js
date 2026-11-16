@@ -418,6 +418,11 @@ function attach(io, { auth, accounts, store }) {
       const S = signs[d.m]; if (!S || !S.c || !S.c[who]) return;
       const c = { ...S.c }; delete c[who]; signs = { ...signs, [d.m]: { ...S, c } }; await signSave();
     });
+    // 관리자의 달콩빔: 맞은 사람 화면에 달콩이 사진 (관리자만, 같은 맵, 1초에 한 번)
+    socket.on('dk', (d) => {
+      if (uid !== ADMIN_ID || !d) return; const t = byUid.get(String(d.to || '')); if (!t || t.data.map !== socket.data.map) return;
+      const now = Date.now(); if (now - (t.data.dkT || 0) < 1000) return; t.data.dkT = now; t.emit('dk');
+    });
     socket.on('ann', (t) => {
       if (uid !== ADMIN_ID) return;
       const now = Date.now(); if (now - (socket.data.annT || 0) < 3000) return; socket.data.annT = now;
