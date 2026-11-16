@@ -17,6 +17,7 @@ const GRANTS = [
 ];
 GRANTS.push({ id: 'title-lost-taeheeim', nick: '이태희', name: '이태희임', title: 'lost', keep: true }); // 칭호 「최초로 계정이 날라간 자」 (새 게임을 해도 유지)
 GRANTS.push({ id: 'title-fav-otter-1116', nick: 'otter', name: 'otter', title: 'fav', keep: true }); // 칭호 「^관리자의 최애^」 (계정 닉네임이나 캐릭터 이름이 otter)
+GRANTS.push({ id: 'lv60-jusiwan-1116', nick: '주시완', name: '주시완', setLv: 60, recalc: true }); // 주시완 Lv60 (스킬·능력치 포인트도 Lv60에 맞게 다시 계산)
 // (취소) 「왕정훈 찐계」에 잘못 내린 조정. 이미 적용됐다면 아래 복구가 한 번 들어간다.
 GRANTS.push({ id: 'restore-hanback-1116', nick: 'hanback0820', name: '왕정훈 찐계', requires: 'penalty-hanback-1115', setLv: 46, goldMul: 2, recalc: true });
 // 「왕정훈 본계」: 레벨 -8 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
