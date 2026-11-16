@@ -351,6 +351,7 @@ function attach(io, { auth, accounts, store }) {
       else if (d.k === 'pvh') { if (!m.startsWith('arena')) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) { d.from = uid; t.emit('ev', d); } } // 결투: 상대에게 피해
       else if (d.k === 'pvend') { if (m.startsWith('arena')) socket.to('m:' + m).emit('ev', { k: 'pvend', from: uid }); } // 결투: 내가 졌다
       else if (d.k === 'sk') { d.from = uid; socket.to('m:' + m).volatile.emit('ev', d); } // 다른 사람에게 내 스킬 연출 보여주기
+      else if (d.k === 'bf') { if (amHost()) socket.to('m:' + m).emit('ev', d); } // 보스 예고 표시·피하기 버튼을 같은 맵 사람들에게
       else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); } // 마을 할머니 추격 장면 공유
       else if (d.k === 'dmg') { if (!amHost()) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('ev', d); }
     });
