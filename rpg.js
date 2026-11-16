@@ -272,6 +272,31 @@ function attach(io, { auth, accounts, store }) {
       const T = parties.get(id); if (T.m.length >= 4) return socket.emit('tr:msg', '파티가 가득 찼어요');
       T.m.push(uid); ptSend(id);
     });
+    // 파티 참가 요청: 상대 파티의 파티장(파티가 없으면 상대 본인)에게 묻는다
+    socket.on('pt:req', (d) => {
+      const t = byUid.get(String((d && d.to) || ''));
+      if (!t || t === socket) return socket.emit('tr:msg', '상대가 접속해 있지 않아요');
+      if (partyOf(uid)) return socket.emit('tr:msg', '이미 파티에 있어요. 먼저 파티를 나가 주세요');
+      const now = Date.now(); if (now - (socket.data.preq || 0) < 3000) return socket.emit('tr:msg', '잠시 후 다시 요청해 주세요'); socket.data.preq = now;
+      const pid = partyOf(t.data.uid); const T = pid && parties.get(pid);
+      if (T && T.m.length >= 4) return socket.emit('tr:msg', '그 파티는 가득 찼어요');
+      const L = T ? byUid.get(T.lead) : t; if (!L) return socket.emit('tr:msg', '파티장이 접속해 있지 않아요');
+      L.data.preqs = (L.data.preqs || []).filter((x) => now - x.t < 60000 && x.from !== uid).slice(-5); L.data.preqs.push({ from: uid, t: now });
+      L.emit('pt:rq', { from: uid, op: (socket.data.p && socket.data.p[1]) || socket.data.nick, lv: socket.data.p && socket.data.p[5] });
+      socket.emit('tr:msg', '파티 참가 요청을 보냈어요');
+    });
+    socket.on('pt:rans', (d) => {
+      const now = Date.now(); const L = socket.data.preqs || []; const i = L.findIndex((x) => d && x.from === String(d.from) && now - x.t < 60000);
+      if (i < 0) return; const A = L.splice(i, 1)[0];
+      const rq = byUid.get(A.from); if (!rq) return socket.emit('tr:msg', '요청한 사람이 나갔어요');
+      if (!d.yes) return rq.emit('tr:msg', ((socket.data.p && socket.data.p[1]) || '상대') + ' 님이 파티 참가를 거절했어요');
+      if (partyOf(A.from)) return socket.emit('tr:msg', '그 사람은 이미 다른 파티에 들어갔어요');
+      let id = partyOf(uid);
+      if (id && parties.get(id).lead !== uid) return;
+      if (!id) { id = Math.random().toString(36).slice(2, 8); parties.set(id, { lead: uid, m: [uid] }); }
+      const T = parties.get(id); if (T.m.length >= 4) return socket.emit('tr:msg', '파티가 가득 찼어요');
+      T.m.push(A.from); ptSend(id);
+    });
     socket.on('pt:leave', () => ptLeave(uid));
     // 거래
     const tOther = (T) => (T.a === uid ? T.b : T.a);
@@ -358,7 +383,7 @@ function attach(io, { auth, accounts, store }) {
     socket.on('who', (cb) => {
       const now = Date.now(); if (typeof cb !== 'function' || now - (socket.data.wt || 0) < 700) return; socket.data.wt = now;
       const list = [];
-      for (const s of byUid.values()) { const q = s.data.p; if (q && s.data.map && list.length < 80) list.push([q[0], q[1], q[5], s.data.map, q[6], q[7]]); }
+      for (const s of byUid.values()) { const q = s.data.p; if (q && s.data.map && list.length < 80) { const pid = partyOf(s.data.uid); list.push([q[0], q[1], q[5], s.data.map, q[6], q[7], pid ? parties.get(pid).m.length : 0]); } }
       cb(list);
     });
     // 채팅: 같은 맵 사람들 머리 위에 뜬다 (0.8초에 한 번)
