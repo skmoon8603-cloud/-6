@@ -185,12 +185,20 @@ function attach(io, { auth, accounts, store }) {
   const ns = io.of('/rpg');
   const byUid = new Map(); // uid -> socket
   const duels = new Map(); let pend = []; // 결투 신청
+  const trades = new Map(); // 거래
   // 같이 사냥: 맵마다 '방장' 한 명이 몬스터를 움직이고, 나머지는 방장이 보내주는 몬스터 상태를 보며 때린 내용을 방장에게 보낸다.
   const hosts = new Map(); // map -> uid
   const bossDead = new Map(); // map -> 보스가 쓰러진 시각 (다시 나타나기까지 10초)
   const bd = (m) => (bossDead.has(m) ? Date.now() - bossDead.get(m) : null);
   const hostOk = (m) => { const s = byUid.get(hosts.get(m)); return !!(s && s.data.map === m); };
-  const pickHost = (m) => { if (hostOk(m)) return; hosts.delete(m); for (const s of byUid.values()) if (s.data.map === m) { hosts.set(m, s.data.uid); s.emit('host', { m, h: 1, bd: bd(m) }); return; } };
+  const pickHost = (m) => {
+    if (hostOk(m) && !byUid.get(hosts.get(m)).data.idle) return;
+    const cur = hosts.get(m), list = [...byUid.values()].filter((s) => s.data.map === m);
+    const next = list.find((s) => !s.data.idle) || (hostOk(m) ? null : list[0]);
+    if (!next || next.data.uid === cur) return;
+    const old = byUid.get(cur); if (old && old.data.map === m) old.emit('host', { m, h: 0 });
+    hosts.set(m, next.data.uid); next.emit('host', { m, h: 1, bd: bd(m) });
+  };
   ns.use(async (socket, next) => {
     try {
       const s = auth.verifySession(socket.handshake.auth && socket.handshake.auth.token);
@@ -216,7 +224,9 @@ function attach(io, { auth, accounts, store }) {
         if (old) socket.leave('m:' + old);
         socket.join('m:' + map); socket.data.map = map;
         if (old) pickHost(old);
-        if (!hostOk(map)) hosts.set(map, uid);
+        if (socket.data.endTrades) socket.data.endTrades('상대가 다른 곳으로 이동했어요');
+        if (old) socket.to('m:' + old).emit('vc', { t: 'bye', from: uid });
+        if (!hostOk(map) || byUid.get(hosts.get(map)).data.idle) { const o = byUid.get(hosts.get(map)); if (o && o !== socket && o.data.map === map) o.emit('host', { m: map, h: 0 }); hosts.set(map, uid); }
         socket.emit('host', { m: map, h: hosts.get(map) === uid ? 1 : 0, bd: bd(map) });
       }
       socket.data.p = [
@@ -225,6 +235,48 @@ function attach(io, { auth, accounts, store }) {
         Math.round(num(d.hp, 0, 100)), // 체력 %
       ];
     });
+    socket.on('idle', (v) => { socket.data.idle = !!v; if (socket.data.map) pickHost(socket.data.map); }); // 다른 창을 보는 중
+    // 실시간 음성: 같은 맵에서 음성을 켠 사람끼리 연결 신호를 중계한다
+    socket.on('vc', (d) => {
+      const m = socket.data.map; if (!m || !d || typeof d !== 'object' || Array.isArray(d)) return;
+      try { if (JSON.stringify(d).length > 12000) return; } catch (e) { return; }
+      d.from = uid;
+      if (d.to) { const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('vc', d); }
+      else socket.to('m:' + m).emit('vc', d);
+    });
+    // 거래
+    const tOther = (T) => (T.a === uid ? T.b : T.a);
+    const tEnd = (id, msg) => { const T = trades.get(id); if (!T) return; trades.delete(id); for (const u of [T.a, T.b]) { const q = byUid.get(u); if (q) q.emit('tr:end', { id, msg: u === uid ? '' : msg }); } };
+    socket.data.endTrades = (msg) => { for (const [id, T] of trades) if (T.a === uid || T.b === uid) tEnd(id, msg); };
+    socket.on('tr:req', (d) => {
+      const t = byUid.get(String((d && d.to) || ''));
+      if (!t || t === socket || t.data.map !== socket.data.map) return socket.emit('tr:msg', '상대가 근처에 없어요');
+      for (const T of trades.values()) if ([T.a, T.b].includes(uid) || [T.a, T.b].includes(t.data.uid)) return socket.emit('tr:msg', '이미 거래 중이에요');
+      const id = Math.random().toString(36).slice(2, 9);
+      trades.set(id, { a: uid, b: t.data.uid, off: {}, lk: new Set(), ok: false, t: Date.now() });
+      t.emit('tr:ask', { id, op: (socket.data.p && socket.data.p[1]) || socket.data.nick });
+      socket.emit('tr:msg', '거래를 신청했어요. 상대의 대답을 기다리는 중…');
+    });
+    socket.on('tr:ans', (d) => {
+      const id = String((d && d.id) || ''), T = trades.get(id); if (!T || T.b !== uid || T.ok) return;
+      if (!d.yes) return tEnd(id, '상대가 거래를 거절했어요');
+      T.ok = true;
+      for (const u of [T.a, T.b]) { const q = byUid.get(u), o = byUid.get(u === T.a ? T.b : T.a); if (q) q.emit('tr:open', { id, op: (o && o.data.p && o.data.p[1]) || '?' }); }
+    });
+    socket.on('tr:offer', (d) => {
+      const id = String((d && d.id) || ''), T = trades.get(id); if (!T || !T.ok || (T.a !== uid && T.b !== uid)) return;
+      const o = d.offer; try { if (!o || typeof o !== 'object' || JSON.stringify(o).length > 4000) return; } catch (e) { return; }
+      T.off[uid] = o; T.lk.clear();
+      const other = byUid.get(tOther(T)); if (other) other.emit('tr:offer', { id, offer: o });
+      for (const u of [T.a, T.b]) { const q = byUid.get(u); if (q) q.emit('tr:st', { id, lk: [] }); }
+    });
+    socket.on('tr:lock', (d) => {
+      const id = String((d && d.id) || ''), T = trades.get(id); if (!T || !T.ok || (T.a !== uid && T.b !== uid)) return;
+      if (d.on) T.lk.add(uid); else T.lk.delete(uid);
+      if (T.lk.size === 2) { trades.delete(id); for (const u of [T.a, T.b]) { const q = byUid.get(u); if (q) q.emit('tr:done', { id, give: T.off[u] || {}, get: T.off[u === T.a ? T.b : T.a] || {} }); } return; }
+      for (const u of [T.a, T.b]) { const q = byUid.get(u); if (q) q.emit('tr:st', { id, lk: [...T.lk] }); }
+    });
+    socket.on('tr:cancel', (d) => tEnd(String((d && d.id) || ''), '상대가 거래를 취소했어요'));
     const amHost = () => !!socket.data.map && hosts.get(socket.data.map) === uid;
     let evN = 0, evT = 0;
     const flood = () => { const now = Date.now(); if (now - evT > 1000) { evT = now; evN = 0; } return ++evN > 300; };
@@ -282,7 +334,7 @@ function attach(io, { auth, accounts, store }) {
       socket.data.ct = now;
       socket.to('m:' + m).emit('c', { u: uid, n: (socket.data.p && socket.data.p[1]) || socket.data.nick, t: text });
     });
-    socket.on('disconnect', () => { const m = socket.data.map; if (byUid.get(uid) === socket) byUid.delete(uid); if (m) pickHost(m); });
+    socket.on('disconnect', () => { const m = socket.data.map; if (socket.data.endTrades) socket.data.endTrades('상대가 접속을 끊었어요'); if (m) socket.to('m:' + m).emit('vc', { t: 'bye', from: uid }); if (byUid.get(uid) === socket) byUid.delete(uid); if (m) pickHost(m); });
   });
   let tick = 0;
   const timer = setInterval(() => {
