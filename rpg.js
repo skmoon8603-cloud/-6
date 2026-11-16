@@ -22,8 +22,11 @@ GRANTS.push({ id: 'lv60-jusiwan-1116', nick: '주시완', name: '주시완', set
 GRANTS.push({ id: 'restore-hanback-1116', nick: 'hanback0820', name: '왕정훈 찐계', requires: 'penalty-hanback-1115', setLv: 46, goldMul: 2, recalc: true });
 // 「왕정훈 본계」: 레벨 -8 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
 GRANTS.push({ id: 'penalty-wjh-main-1116', name: '왕정훈 본계', lvAdd: -8, spDown: 8, apDown: 24, goldMul: 0.5 });
+GRANTS.push({ id: 'gold-admin-1117', admin: true, goldAdd: 200000000 }); // 관리자 +2억 골드
 const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
+const SEATS = { moto: 1, bonggu: 2, lambo: 2 }; // 탈것 뒷자리
+const VEH_OK = new Set(['kick', 'fixie', 'moto', 'bonggu', 'lambo']);
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
 const word = (v) => (typeof v === 'string' && /^[a-z]{1,10}$/.test(v) ? v : '');
 const itemId = (v) => (typeof v === 'string' && /^[a-z0-9_]{1,14}$/.test(v) ? v : '');
@@ -114,7 +117,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => ((g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, recalc: g.recalc }));
+    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, recalc: g.recalc }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
@@ -235,6 +238,8 @@ function attach(io, { auth, accounts, store }) {
         const old = socket.data.map;
         if (old) socket.leave('m:' + old);
         socket.join('m:' + map); socket.data.map = map;
+        for (const q of byUid.values()) if (q.data.ride === uid) q.emit('ride:map', { m: map, x: Math.round(num(d.x, 0, 9999)), y: Math.round(num(d.y, 0, 9999)) }); // 뒤에 탄 사람도 같이 이동
+        if (socket.data.ride) { const dr = byUid.get(socket.data.ride); if (!dr || dr.data.map !== map) { socket.data.ride = null; socket.emit('ride:off', {}); } }
         if (old) pickHost(old);
         if (socket.data.endTrades) socket.data.endTrades('상대가 다른 곳으로 이동했어요');
         if (old) socket.to('m:' + old).emit('vc', { t: 'bye', from: uid });
@@ -245,7 +250,10 @@ function attach(io, { auth, accounts, store }) {
         uid, cleanName(d.n) || socket.data.nick, word(d.r), word(d.c), word(d.j), Math.round(num(d.l, 1, 999)),
         Math.round(num(d.x, 0, 9999)), Math.round(num(d.y, 0, 9999)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar), d.t === 'admin' && uid !== ADMIN_ID ? '' : itemId(d.t), // 칭호 (관리자 칭호는 관리자만)
         Math.round(num(d.hp, 0, 100)), // 체력 %
+        VEH_OK.has(d.v) ? d.v : '', socket.data.ride ? 1 : 0, // 탈것 · 다른 사람 뒤에 탔는지
       ];
+      // 운전자가 탈것에서 내리거나 좌석이 줄면 뒤에 탄 사람을 내리게 한다
+      { const seats = SEATS[socket.data.p[15]] || 0; let n = 0; for (const q of byUid.values()) if (q.data.ride === uid) { if (++n > seats) { q.data.ride = null; q.emit('ride:off', { why: seats ? '자리가 없어요' : '운전자가 내렸어요' }); } } }
     });
     socket.on('idle', (v) => { socket.data.idle = !!v; if (socket.data.map) pickHost(socket.data.map); }); // 다른 창을 보는 중
     // 실시간 음성: 같은 맵에서 음성을 켠 사람끼리 연결 신호를 중계한다
@@ -422,6 +430,27 @@ function attach(io, { auth, accounts, store }) {
     socket.on('dk', (d) => {
       if (uid !== ADMIN_ID || !d) return; const t = byUid.get(String(d.to || '')); if (!t || t.data.map !== socket.data.map) return;
       const now = Date.now(); if (now - (t.data.dkT || 0) < 1000) return; t.data.dkT = now; t.emit('dk');
+    });
+    // 탈것 뒤에 타기 (오토바이 1명, 봉구차·람보르기니 2명)
+    socket.on('ride', (d) => {
+      const dr = byUid.get(String((d && d.to) || '')); if (!dr || dr === socket || socket.data.ride) return;
+      const me = socket.data.p, p = dr.data.p; if (!me || !p || dr.data.map !== socket.data.map) return;
+      if (dr.data.ride) return socket.emit('tr:msg', '그 사람도 다른 사람 뒤에 타고 있어요');
+      const seats = SEATS[p[15]] || 0; if (!seats) return socket.emit('tr:msg', '뒤에 탈 수 있는 탈것이 아니에요');
+      if (Math.hypot(p[6] - me[6], p[7] - me[7]) > 120) return socket.emit('tr:msg', '더 가까이 가야 해요');
+      let n = 0; for (const q of byUid.values()) if (q.data.ride === dr.data.uid) n++;
+      if (n >= seats) return socket.emit('tr:msg', '자리가 꽉 찼어요');
+      socket.data.ride = dr.data.uid; socket.emit('ride:ok', { to: dr.data.uid, seat: n });
+      dr.emit('tr:msg', ((me && me[1]) || '누군가') + ' 님이 뒤에 탔어요!');
+    });
+    socket.on('ride:off', () => { if (socket.data.ride) { const dr = byUid.get(socket.data.ride); socket.data.ride = null; if (dr) dr.emit('tr:msg', ((socket.data.p && socket.data.p[1]) || '누군가') + ' 님이 내렸어요'); } });
+    // 경찰봉: 맞은 사람을 파출소 감옥에 30초 가둔다 (관리자 · 이태희 계정만)
+    socket.on('jail', (d) => {
+      if (!(uid === ADMIN_ID || socket.data.nick === '이태희') || !d) return;
+      const t = byUid.get(String(d.to || '')); if (!t || t === socket || t.data.map !== socket.data.map) return;
+      const now = Date.now(); if (now - (t.data.jailT || 0) < 31000) return; t.data.jailT = now;
+      t.data.ride = null; t.emit('jailed', { by: (socket.data.p && socket.data.p[1]) || '경찰', s: 30 });
+      socket.emit('tr:msg', ((t.data.p && t.data.p[1]) || '상대') + ' 님을 감옥에 가뒀어요 (30초)');
     });
     socket.on('ann', (t) => {
       if (uid !== ADMIN_ID) return;
