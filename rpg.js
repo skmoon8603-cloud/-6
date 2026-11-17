@@ -24,6 +24,7 @@ GRANTS.push({ id: 'restore-hanback-1116', nick: 'hanback0820', name: '왕정훈 
 GRANTS.push({ id: 'penalty-wjh-main-1116', name: '왕정훈 본계', lvAdd: -8, spDown: 8, apDown: 24, goldMul: 0.5 });
 GRANTS.push({ id: 'dalkong-choi-1117', nick: '최범규 vr2', name: '최범규 vr2', item: 'dalkong' }); // 최범규 vr2에게 달콩빔 (하루 10번)
 const DK_NAMES = new Set(['최범규 vr2']); // 달콩빔을 하루 10번 쓸 수 있는 사람 (계정 닉네임 또는 캐릭터 이름)
+GRANTS.push({ id: 'cls-admin-spirit-1117', admin: true, setCls: 'spirit' }); // 관리자 직업 → 정령술사
 GRANTS.push({ id: 'gold-admin-1117', admin: true, goldAdd: 200000000 }); // 관리자 +2억 골드
 const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
@@ -119,7 +120,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, recalc: g.recalc }));
+    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
@@ -195,7 +196,7 @@ function attach(io, { auth, accounts, store }) {
   if (store) linkByNick(store, '주시완').then((r) => { linkStatus = r; console.log('[rpg] 주시완 계정 연동:', r); }).catch((e) => { linkStatus = 'error'; console.error('[rpg] 연동 오류', e.message); });
   const ns = io.of('/rpg');
   // ===== 서버 이벤트: 매일 23시 평화의 마을에 거대 슬라임 =====
-  // 1마리 → 2 → 4 → 8 → 16 → 32 → 64 마리로 분열. 기여도(준 피해)에 따라 80만 골드 · 슬라임 점액 1만 개 · 경험치를 나눈다.
+  // 1마리 → 2 → 4 → 8 → 16 → 32 → 64 마리로 분열. 기여도(준 피해)에 따라 80만 골드 · 슬라임 점액 1만 개 · 레벨 9 만큼의 경험치를 나눈다.
   const EVT = { on: false, stage: 0, t: 0, stageT: 0, contrib: new Map(), names: new Map(), day: '', warned: '' };
   const kstNow = () => new Date(Date.now() + 9 * 3600e3);
   const evtStart = () => { const d = kstNow(); Object.assign(EVT, { on: true, stage: 0, t: Date.now(), stageT: Date.now(), contrib: new Map(), names: new Map(), day: d.toISOString().slice(0, 10) }); ns.emit('evt', { on: 1, stage: 0, intro: 1 }); ns.emit('tr:msg', '🟢 23시 서버 이벤트! 평화의 마을에 거대 슬라임이 나타났어요!'); };
@@ -203,7 +204,7 @@ function attach(io, { auth, accounts, store }) {
     if (!EVT.on) return; EVT.on = false; const f = full ? 1 : Math.min(1, EVT.stage / 7);
     const list = [...EVT.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1;
     ns.emit('evt', { on: 0, end: 1, full: full ? 1 : 0 });
-    list.forEach(([u, c], i) => { const q = byUid.get(u); if (!q) return; const sh = c / total; q.emit('evt:reward', { gold: Math.round(800000 * sh * f), gel: Math.round(10000 * sh * f), exp: Math.round(3000000 * sh * f), pct: Math.round(sh * 1000) / 10, rank: i + 1, n: list.length, full: full ? 1 : 0 }); });
+    list.forEach(([u, c], i) => { const q = byUid.get(u); if (!q) return; const sh = c / total; q.emit('evt:reward', { gold: Math.round(800000 * sh * f), gel: Math.round(10000 * sh * f), lv: Math.round(9 * sh * f * 100) / 100, pct: Math.round(sh * 1000) / 10, rank: i + 1, n: list.length, full: full ? 1 : 0 }); });
   };
   const evtRank = () => { const list = [...EVT.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1; return list.slice(0, 40).map(([u, c]) => [u, EVT.names.get(u) || '?', Math.round(c / total * 1000) / 10]); };
   setInterval(() => {
@@ -523,6 +524,12 @@ function attach(io, { auth, accounts, store }) {
       if (!EVT.on || socket.data.map !== 'village' || !d || +d.stage !== EVT.stage || Date.now() - EVT.stageT < 4000) return;
       EVT.stage++; EVT.stageT = Date.now(); if (EVT.stage > 6) return evtEnd(true);
       ns.emit('evt', { on: 1, stage: EVT.stage, split: 1 });
+    });
+    socket.on('admin:spawn', (d) => { // 관리자: /드래곤 — 지금 있는 맵의 방장에게 드래곤을 소환하게 한다
+      if (uid !== ADMIN_ID || !d || d.t !== 'dragon') return; const m = socket.data.map; if (!m) return;
+      const h = byUid.get(hosts.get(m)); const tgt = h && h.data.map === m ? h : socket;
+      tgt.emit('admin:spawn', { t: 'dragon', m, x: Math.round(num(d.x, 0, 200000)), y: Math.round(num(d.y, 0, 200000)) });
+      ns.to('m:' + m).emit('tr:msg', '🐉 관리자가 화염 드래곤을 소환했다!!');
     });
     socket.on('evt:admin', (d) => { if (uid !== ADMIN_ID) return; if (d === 'start' && !EVT.on) evtStart(); if (d === 'stop') evtEnd(false); }); // 관리자 테스트용
     socket.on('ann', (t) => {
