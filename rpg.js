@@ -194,6 +194,25 @@ function http(app, { store, auth, accounts }) {
 function attach(io, { auth, accounts, store }) {
   if (store) linkByNick(store, '주시완').then((r) => { linkStatus = r; console.log('[rpg] 주시완 계정 연동:', r); }).catch((e) => { linkStatus = 'error'; console.error('[rpg] 연동 오류', e.message); });
   const ns = io.of('/rpg');
+  // ===== 서버 이벤트: 매일 23시 평화의 마을에 거대 슬라임 =====
+  // 1마리 → 2 → 4 → 8 → 16 → 32 → 64 마리로 분열. 기여도(준 피해)에 따라 80만 골드 · 슬라임 점액 1만 개 · 경험치를 나눈다.
+  const EVT = { on: false, stage: 0, t: 0, stageT: 0, contrib: new Map(), names: new Map(), day: '', warned: '' };
+  const kstNow = () => new Date(Date.now() + 9 * 3600e3);
+  const evtStart = () => { const d = kstNow(); Object.assign(EVT, { on: true, stage: 0, t: Date.now(), stageT: Date.now(), contrib: new Map(), names: new Map(), day: d.toISOString().slice(0, 10) }); ns.emit('evt', { on: 1, stage: 0, intro: 1 }); ns.emit('tr:msg', '🟢 23시 서버 이벤트! 평화의 마을에 거대 슬라임이 나타났어요!'); };
+  const evtEnd = (full) => {
+    if (!EVT.on) return; EVT.on = false; const f = full ? 1 : Math.min(1, EVT.stage / 7);
+    const list = [...EVT.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1;
+    ns.emit('evt', { on: 0, end: 1, full: full ? 1 : 0 });
+    list.forEach(([u, c], i) => { const q = byUid.get(u); if (!q) return; const sh = c / total; q.emit('evt:reward', { gold: Math.round(800000 * sh * f), gel: Math.round(10000 * sh * f), exp: Math.round(3000000 * sh * f), pct: Math.round(sh * 1000) / 10, rank: i + 1, n: list.length, full: full ? 1 : 0 }); });
+  };
+  const evtRank = () => { const list = [...EVT.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1; return list.slice(0, 40).map(([u, c]) => [u, EVT.names.get(u) || '?', Math.round(c / total * 1000) / 10]); };
+  setInterval(() => {
+    const d = kstNow(), h = d.getUTCHours(), m = d.getUTCMinutes(), day = d.toISOString().slice(0, 10);
+    if (h === 22 && m >= 55 && EVT.warned !== day) { EVT.warned = day; ns.emit('tr:msg', '⏰ 곧 23시! 평화의 마을에 거대 슬라임이 나타나요 (서버 이벤트)'); }
+    if (h === 23 && !EVT.on && EVT.day !== day) evtStart();
+    if (EVT.on && h !== 23 && Date.now() - EVT.t > 3600e3) evtEnd(false); // 1시간이 지나도 못 잡으면 잡은 만큼만 보상
+    if (EVT.on) ns.emit('evt:rank', { stage: EVT.stage, list: evtRank() });
+  }, 2000).unref?.();
   // 달콩빔 하루 사용 횟수 (한국 시간 기준 날짜마다 10번)
   const dkCount = new Map(); const kstDay = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   const dkLeft = (u) => { const day = kstDay(); let c = dkCount.get(u); if (!c || c.day !== day) { c = { day, n: 0 }; dkCount.set(u, c); } return Math.max(0, 10 - c.n); };
@@ -495,6 +514,17 @@ function attach(io, { auth, accounts, store }) {
       t.data.ride = null; t.emit('jailed', { by: (socket.data.p && socket.data.p[1]) || '경찰', s: 30 });
       socket.emit('tr:msg', ((t.data.p && t.data.p[1]) || '상대') + ' 님을 감옥에 가뒀어요 (30초)');
     });
+    if (EVT.on) socket.emit('evt', { on: 1, stage: EVT.stage });
+    socket.on('evt:dmg', (v) => { // 이벤트 슬라임에게 준 피해 (기여도)
+      if (!EVT.on || socket.data.map !== 'village') return; const now = Date.now(); if (now - (socket.data.evdT || 0) < 700) return; socket.data.evdT = now;
+      const n = Math.max(0, Math.min(2e7, Number(v) || 0)); if (!n) return; EVT.contrib.set(uid, (EVT.contrib.get(uid) || 0) + n); EVT.names.set(uid, (socket.data.p && socket.data.p[1]) || socket.data.nick || '?');
+    });
+    socket.on('evt:clear', (d) => { // 방장이 '이번 단계 슬라임을 다 잡았다'고 알린다
+      if (!EVT.on || socket.data.map !== 'village' || !d || +d.stage !== EVT.stage || Date.now() - EVT.stageT < 4000) return;
+      EVT.stage++; EVT.stageT = Date.now(); if (EVT.stage > 6) return evtEnd(true);
+      ns.emit('evt', { on: 1, stage: EVT.stage, split: 1 });
+    });
+    socket.on('evt:admin', (d) => { if (uid !== ADMIN_ID) return; if (d === 'start' && !EVT.on) evtStart(); if (d === 'stop') evtEnd(false); }); // 관리자 테스트용
     socket.on('ann', (t) => {
       if (uid !== ADMIN_ID) return;
       const now = Date.now(); if (now - (socket.data.annT || 0) < 3000) return; socket.data.annT = now;
