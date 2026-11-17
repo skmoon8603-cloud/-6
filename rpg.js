@@ -126,7 +126,11 @@ function http(app, { store, auth, accounts }) {
     if (JSON.stringify(save).length > MAX_SAVE) return { status: 413, body: { error: 'too_big' } };
     if (!(await accounts.get(uid))) return { status: 401, body: { error: 'unauthorized' } };
     const id = docId(uid), t = Date.now();
-    await store.txn([id], (m) => { m[id] = { id, uid, save, t }; });
+    // 다른 기기가 더 최근에 저장했으면 거절한다 (예전 데이터가 새 데이터를 덮어쓰지 않게)
+    const base = req.body && Number.isFinite(req.body.base) ? req.body.base : null;
+    let conflict = false;
+    await store.txn([id], (m) => { const cur = m[id]; if (base != null && cur && cur.t && cur.t !== base) { conflict = true; return; } m[id] = { id, uid, save, t }; });
+    if (conflict) return { status: 409, body: { error: 'conflict' } };
     return { body: { ok: true, t } };
   }));
 
