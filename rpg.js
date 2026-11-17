@@ -202,7 +202,7 @@ function attach(io, { auth, accounts, store }) {
   if (store) store.get(SIGN_ID).then((d) => { if (d && d.signs) signs = d.signs; }).catch(() => {});
   const signSave = async () => { try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); } ns.emit('signs', signs); };
   const byUid = new Map(); // uid -> socket
-  const duels = new Map(); let pend = []; // 결투 신청
+  const duels = new Map(); let pend = []; let lobbies = []; // 결투 신청 · 1:다수 결투 대기실
   const trades = new Map(); // 거래
   const parties = new Map(); // 파티 id -> { lead, m: [uid...] }  (최대 4명)
   const partyOf = (u) => { for (const [id, T] of parties) if (T.m.includes(u)) return id; return null; };
@@ -262,6 +262,7 @@ function attach(io, { auth, accounts, store }) {
         Math.round(num(d.hp, 0, 100)), // 체력 %
         VEH_OK.has(d.v) ? d.v : '', socket.data.ride ? 1 : 0, // 탈것 · 다른 사람 뒤에 탔는지
         Math.round(num(d.hd, -7, 7) * 100) / 100, // 픽시 진행 방향 (도는 모습)
+        Array.isArray(d.sp) ? d.sp.slice(0, 5).map((a) => Array.isArray(a) ? [Math.round(num(a[0], 0, 9)), Math.round(num(a[1], 0, 200000)), Math.round(num(a[2], 0, 200000))] : [0, 0, 0]) : [], // 정령술사의 정령
       ];
       // 운전자가 탈것에서 내리거나 좌석이 줄면 뒤에 탄 사람을 내리게 한다
       { const seats = SEATS[socket.data.p[15]] || 0; let n = 0; for (const q of byUid.values()) if (q.data.ride === uid) { if (++n > seats) { q.data.ride = null; q.emit('ride:off', { why: seats ? '자리가 없어요' : '운전자가 내렸어요' }); } } }
@@ -393,6 +394,34 @@ function attach(io, { auth, accounts, store }) {
       const nameOf = (u) => { const q = byUid.get(u); return (q && q.data.p && q.data.p[1]) || (q && q.data.nick) || '?'; };
       byUid.get(other.uid).emit('duel:ask', { id, op: nameOf(uid) });
       socket.emit('duel:ask', { id, op: nameOf(other.uid) });
+    });
+    // 1:다수 결투: 한 명이 '혼자'로 열면 15초 동안 '여럿' 쪽 참가자를 받는다 (최대 4명)
+    socket.on('duel:solo', () => {
+      if (socket.data.map !== 'village') return;
+      const now = Date.now(); lobbies = lobbies.filter((L) => !L.done);
+      if (lobbies.some((L) => L.solo === uid || L.team.includes(uid))) return;
+      const L = { id: Math.random().toString(36).slice(2, 8), solo: uid, team: [], t: now, done: false }; lobbies.push(L);
+      const nm = (socket.data.p && socket.data.p[1]) || socket.data.nick || '?';
+      ns.to('m:village').emit('tr:msg', '⚔ ' + nm + ' 님이 1:다수 결투를 열었어요! 15초 안에 결투 심판 바론에게 「여럿 쪽 참가」를 눌러 주세요');
+      socket.emit('duel:lobby', { role: 'solo', n: 0 });
+      setTimeout(() => {
+        L.done = true; const s0 = byUid.get(L.solo); const team = L.team.filter((u) => { const q = byUid.get(u); return q && q.data.map === 'village'; });
+        if (!s0 || s0.data.map !== 'village') { team.forEach((u) => { const q = byUid.get(u); if (q) q.emit('duel:cancel'); }); return; }
+        if (!team.length) { s0.emit('tr:msg', '아무도 참가하지 않아서 1:다수 결투가 취소됐어요'); s0.emit('duel:cancel'); return; }
+        const key = 'arena' + Array.from({ length: 5 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
+        const sides = { [L.solo]: 0 }; team.forEach((u) => { sides[u] = 1; });
+        s0.emit('duel:go', { arena: key, side: 0, idx: 0, sides });
+        team.forEach((u, i) => { const q = byUid.get(u); if (q) q.emit('duel:go', { arena: key, side: 1, idx: i, sides }); });
+      }, 15000);
+    });
+    socket.on('duel:team', () => {
+      if (socket.data.map !== 'village') return;
+      const L = lobbies.find((x) => !x.done && x.solo !== uid && Date.now() - x.t < 15000);
+      if (!L) return socket.emit('tr:msg', '지금 열린 1:다수 결투가 없어요');
+      if (L.team.includes(uid)) return; if (L.team.length >= 4) return socket.emit('tr:msg', '여럿 쪽 자리가 꽉 찼어요 (최대 4명)');
+      L.team.push(uid); const nm = (socket.data.p && socket.data.p[1]) || '?';
+      socket.emit('duel:lobby', { role: 'team', n: L.team.length, left: Math.max(0, Math.ceil((15000 - (Date.now() - L.t)) / 1000)) });
+      const s0 = byUid.get(L.solo); if (s0) s0.emit('tr:msg', '⚔ ' + nm + ' 님이 여럿 쪽에 참가했어요 (' + L.team.length + '명)');
     });
     socket.on('duel:ans', (d) => {
       const id = String((d && d.id) || ''), D = duels.get(id);
