@@ -22,6 +22,8 @@ GRANTS.push({ id: 'lv60-jusiwan-1116', nick: '주시완', name: '주시완', set
 GRANTS.push({ id: 'restore-hanback-1116', nick: 'hanback0820', name: '왕정훈 찐계', requires: 'penalty-hanback-1115', setLv: 46, goldMul: 2, recalc: true });
 // 「왕정훈 본계」: 레벨 -8 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
 GRANTS.push({ id: 'penalty-wjh-main-1116', name: '왕정훈 본계', lvAdd: -8, spDown: 8, apDown: 24, goldMul: 0.5 });
+GRANTS.push({ id: 'dalkong-choi-1117', nick: '최범규 vr2', name: '최범규 vr2', item: 'dalkong' }); // 최범규 vr2에게 달콩빔 (하루 10번)
+const DK_NAMES = new Set(['최범규 vr2']); // 달콩빔을 하루 10번 쓸 수 있는 사람 (계정 닉네임 또는 캐릭터 이름)
 GRANTS.push({ id: 'gold-admin-1117', admin: true, goldAdd: 200000000 }); // 관리자 +2억 골드
 const grantDoc = (uid) => '__rpggrant:' + uid;
 const MAPS = /^[a-z]{2,12}$/;
@@ -117,7 +119,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, recalc: g.recalc }));
+    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, recalc: g.recalc }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
@@ -192,6 +194,9 @@ function http(app, { store, auth, accounts }) {
 function attach(io, { auth, accounts, store }) {
   if (store) linkByNick(store, '주시완').then((r) => { linkStatus = r; console.log('[rpg] 주시완 계정 연동:', r); }).catch((e) => { linkStatus = 'error'; console.error('[rpg] 연동 오류', e.message); });
   const ns = io.of('/rpg');
+  // 달콩빔 하루 사용 횟수 (한국 시간 기준 날짜마다 10번)
+  const dkCount = new Map(); const kstDay = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const dkLeft = (u) => { const day = kstDay(); let c = dkCount.get(u); if (!c || c.day !== day) { c = { day, n: 0 }; dkCount.set(u, c); } return Math.max(0, 10 - c.n); };
   // 마을 표지판: 관리자만 고칠 수 있고 모두에게 보인다 (계정 저장소의 '__rpgsigns' 문서에 저장)
   const SIGN_ID = '__rpgsigns'; const SIGN_MAPS = ['village', 'sea']; let signs = {};
   if (store) store.get(SIGN_ID).then((d) => { if (d && d.signs) signs = d.signs; }).catch(() => {});
@@ -225,6 +230,7 @@ function attach(io, { auth, accounts, store }) {
       const a = await accounts.get(s.uid);
       if (!a) return next(new Error('unauthorized'));
       socket.data.uid = s.uid; socket.data.nick = a.nick;
+      try { const d = await store.get(docId(s.uid)); socket.data.dkOk = DK_NAMES.has(a.nick) || !!(d && d.save && DK_NAMES.has(d.save.name)); } catch (e) { socket.data.dkOk = false; }
       next();
     } catch (e) { next(new Error('server_error')); }
   });
@@ -431,9 +437,12 @@ function attach(io, { auth, accounts, store }) {
       const c = { ...S.c }; delete c[who]; signs = { ...signs, [d.m]: { ...S, c } }; await signSave();
     });
     // 관리자의 달콩빔: 맞은 사람 화면에 달콩이 사진 (관리자만, 같은 맵, 1초에 한 번)
+    if (socket.data.dkOk && uid !== ADMIN_ID) socket.emit('dkleft', dkLeft(uid));
     socket.on('dk', (d) => {
-      if (uid !== ADMIN_ID || !d) return; const t = byUid.get(String(d.to || '')); if (!t || t.data.map !== socket.data.map) return;
-      const now = Date.now(); if (now - (t.data.dkT || 0) < 1000) return; t.data.dkT = now; t.emit('dk');
+      if (!d || !(uid === ADMIN_ID || socket.data.dkOk)) return; const t = byUid.get(String(d.to || '')); if (!t || t.data.map !== socket.data.map) return;
+      const now = Date.now(); if (now - (t.data.dkT || 0) < 1000) return;
+      if (uid !== ADMIN_ID) { const left = dkLeft(uid); if (left <= 0) return socket.emit('dkleft', 0); const c = dkCount.get(uid); c.n++; socket.emit('dkleft', dkLeft(uid)); }
+      t.data.dkT = now; t.emit('dk');
     });
     // 탈것 뒤에 타기 (오토바이 1명, 봉구차·람보르기니 2명)
     socket.on('ride', (d) => {
