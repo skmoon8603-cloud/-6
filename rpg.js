@@ -248,7 +248,7 @@ function attach(io, { auth, accounts, store }) {
         const old = socket.data.map;
         if (old) socket.leave('m:' + old);
         socket.join('m:' + map); socket.data.map = map;
-        for (const q of byUid.values()) if (q.data.ride === uid) q.emit('ride:map', { m: map, x: Math.round(num(d.x, 0, 9999)), y: Math.round(num(d.y, 0, 9999)) }); // 뒤에 탄 사람도 같이 이동
+        for (const q of byUid.values()) if (q.data.ride === uid) q.emit('ride:map', { m: map, x: Math.round(num(d.x, 0, 200000)), y: Math.round(num(d.y, 0, 200000)) }); // 뒤에 탄 사람도 같이 이동
         if (socket.data.ride) { const dr = byUid.get(socket.data.ride); if (!dr || dr.data.map !== map) { socket.data.ride = null; socket.emit('ride:off', {}); } }
         if (old) pickHost(old);
         if (socket.data.endTrades) socket.data.endTrades('상대가 다른 곳으로 이동했어요');
@@ -258,9 +258,10 @@ function attach(io, { auth, accounts, store }) {
       }
       socket.data.p = [
         uid, cleanName(d.n) || socket.data.nick, word(d.r), word(d.c), word(d.j), Math.round(num(d.l, 1, 999)),
-        Math.round(num(d.x, 0, 9999)), Math.round(num(d.y, 0, 9999)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar), d.t === 'admin' && uid !== ADMIN_ID ? '' : itemId(d.t), // 칭호 (관리자 칭호는 관리자만)
+        Math.round(num(d.x, 0, 200000)), Math.round(num(d.y, 0, 200000)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar), d.t === 'admin' && uid !== ADMIN_ID ? '' : itemId(d.t), // 칭호 (관리자 칭호는 관리자만)
         Math.round(num(d.hp, 0, 100)), // 체력 %
         VEH_OK.has(d.v) ? d.v : '', socket.data.ride ? 1 : 0, // 탈것 · 다른 사람 뒤에 탔는지
+        Math.round(num(d.hd, -7, 7) * 100) / 100, // 픽시 진행 방향 (도는 모습)
       ];
       // 운전자가 탈것에서 내리거나 좌석이 줄면 뒤에 탄 사람을 내리게 한다
       { const seats = SEATS[socket.data.p[15]] || 0; let n = 0; for (const q of byUid.values()) if (q.data.ride === uid) { if (++n > seats) { q.data.ride = null; q.emit('ride:off', { why: seats ? '자리가 없어요' : '운전자가 내렸어요' }); } } }
