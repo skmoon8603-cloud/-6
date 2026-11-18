@@ -407,7 +407,8 @@ function attach(io, { auth, accounts, store }) {
       else if (d.k === 'pvend') { if (m.startsWith('arena')) socket.to('m:' + m).emit('ev', { k: 'pvend', from: uid }); } // 결투: 내가 졌다
       else if (d.k === 'sk') { d.from = uid; socket.to('m:' + m).volatile.emit('ev', d); } // 다른 사람에게 내 스킬 연출 보여주기
       else if (d.k === 'bf') { if (amHost()) socket.to('m:' + m).emit('ev', d); } // 보스 예고 표시·피하기 버튼을 같은 맵 사람들에게
-      else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); } // 마을 할머니 추격 장면 공유
+      else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); }
+      else if (d.k === 'skd') { socket.to('m:' + m).volatile.emit('ev', { k: 'skd', a: Math.max(-7, Math.min(7, +d.a || 0)), from: uid }); } // 픽시 스키딩 (자국·소리) // 마을 할머니 추격 장면 공유
       else if (d.k === 'bd') { if (uid === ADMIN_ID) return; socket.to('m:' + m).emit('ev', { k: 'bd', id: d.id, v: +d.v || 0, from: uid }); } // 보스 기여도(내가 넣은 피해) 공유 (관리자는 빼기)
       else if (d.k === 'dmg') { if (!amHost()) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('ev', d); }
     });
