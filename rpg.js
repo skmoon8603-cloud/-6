@@ -156,6 +156,7 @@ function http(app, { store, auth, accounts }) {
       if (!rank.data || Date.now() - rank.t > 20000) {
         const rows = (await store.listAll())
           .filter((d) => d && typeof d.id === 'string' && d.id.startsWith('__rpg:') && d.save && typeof d.save === 'object')
+          .filter((d) => d.uid !== ADMIN_ID) // 관리자는 순위에서 뺀다
           .map((d) => ({ uid: d.uid, name: cleanName(d.save.name) || '모험가', lv: Math.round(num(d.save.lv, 1, 999)), exp: num(d.save.exp, 0, 1e12), gold: Math.round(num(d.save.gold, 0, 1e12)), cls: word(d.save.cls), job: word(d.save.job), pvw: Math.round(num(d.save.pvw, 0, 1e6)), pvl: Math.round(num(d.save.pvl, 0, 1e6)) }));
         const gold = rows.slice().sort((a, b) => b.gold - a.gold || b.lv - a.lv).slice(0, 10);
         const lv = rows.slice().sort((a, b) => b.lv - a.lv || b.exp - a.exp).slice(0, 10);
@@ -208,7 +209,7 @@ function attach(io, { auth, accounts, store }) {
     ns.emit('evt', { on: 0, end: 1, full: full ? 1 : 0 });
     list.forEach(([u, c], i) => { const q = byUid.get(u); if (!q) return; const sh = c / total; q.emit('evt:reward', { gold: Math.round(800000 * sh * f), gel: Math.round(10000 * sh * f), lv: Math.round(9 * sh * f * 100) / 100, pct: Math.round(sh * 1000) / 10, rank: i + 1, n: list.length, full: full ? 1 : 0 }); });
   };
-  const evtRank = () => { const list = [...EVT.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1; return list.slice(0, 40).map(([u, c]) => [u, EVT.names.get(u) || '?', Math.round(c / total * 1000) / 10]); };
+  const evtRank = () => { const list = [...EVT.contrib.entries()].filter(([u]) => u !== ADMIN_ID).sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1; return list.slice(0, 40).map(([u, c]) => [u, EVT.names.get(u) || '?', Math.round(c / total * 1000) / 10]); };
   setInterval(() => {
     const d = kstNow(), h = d.getUTCHours(), m = d.getUTCMinutes(), day = d.toISOString().slice(0, 10);
     if (h === 22 && m >= 55 && EVT.warned !== day) { EVT.warned = day; ns.emit('tr:msg', '⏰ 곧 23시! 평화의 마을에 거대 슬라임이 나타나요 (서버 이벤트)'); }
@@ -401,8 +402,8 @@ function attach(io, { auth, accounts, store }) {
       else if (d.k === 'pvend') { if (m.startsWith('arena')) socket.to('m:' + m).emit('ev', { k: 'pvend', from: uid }); } // 결투: 내가 졌다
       else if (d.k === 'sk') { d.from = uid; socket.to('m:' + m).volatile.emit('ev', d); } // 다른 사람에게 내 스킬 연출 보여주기
       else if (d.k === 'bf') { if (amHost()) socket.to('m:' + m).emit('ev', d); } // 보스 예고 표시·피하기 버튼을 같은 맵 사람들에게
-      else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); }
-      else if (d.k === 'bd') { d.from = uid; socket.to('m:' + m).emit('ev', { k: 'bd', id: d.id, v: +d.v || 0, from: uid }); } // 보스 기여도(내가 넣은 피해) 공유 // 마을 할머니 추격 장면 공유
+      else if (d.k === 'gr') { socket.to('m:' + m).volatile.emit('ev', d); } // 마을 할머니 추격 장면 공유
+      else if (d.k === 'bd') { if (uid === ADMIN_ID) return; socket.to('m:' + m).emit('ev', { k: 'bd', id: d.id, v: +d.v || 0, from: uid }); } // 보스 기여도(내가 넣은 피해) 공유 (관리자는 빼기)
       else if (d.k === 'dmg') { if (!amHost()) return; const t = byUid.get(String(d.to)); if (t && t.data.map === m) t.emit('ev', d); }
     });
     // 결투 신청
