@@ -24,6 +24,7 @@ GRANTS.push({ id: 'restore-hanback-1116', nick: 'hanback0820', name: '왕정훈 
 GRANTS.push({ id: 'penalty-wjh-main-1116', name: '왕정훈 본계', lvAdd: -8, spDown: 8, apDown: 24, goldMul: 0.5 });
 GRANTS.push({ id: 'dalkong-choi-1117', nick: '최범규 vr2', name: '최범규 vr2', item: 'dalkong' }); // 최범규 vr2에게 달콩빔 (하루 10번)
 const DK_NAMES = new Set(['최범규 vr2']); // 달콩빔을 하루 10번 쓸 수 있는 사람 (계정 닉네임 또는 캐릭터 이름)
+GRANTS.push({ id: 'penalty-daege-1118', nick: '대게', name: '대게', lvAdd: -10, spDown: 10, apDown: 30, goldMul: 0.5 }); // 「대게」: 레벨 -10 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
 GRANTS.push({ id: 'cls-admin-spirit-1117', admin: true, setCls: 'spirit' }); // 관리자 직업 → 정령술사
 GRANTS.push({ id: 'cls-admin-spirit-1118', admin: true, setCls: 'spirit' }); // (다시) 예전 화면이 받기만 하고 적용을 못 해서 한 번 더
 GRANTS.push({ id: 'gold-admin-1117', admin: true, goldAdd: 200000000 }); // 관리자 +2억 골드
