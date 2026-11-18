@@ -100,6 +100,41 @@ class Accounts {
   }
 
   async get(id) { const a = await this.store.get(id); return a ? pub(a) : null; }
+
+  /** 관리자: 아이디/닉네임/캐릭터 이름으로 계정 찾기 (비밀번호는 절대 돌려주지 않는다) */
+  async adminFind(q) {
+    const low = String(q || '').normalize('NFC').trim().toLowerCase();
+    const all = await this.store.listAll();
+    const saves = new Map();
+    for (const d of all) if (d && typeof d.id === 'string' && d.id.startsWith('__rpg:') && d.save && typeof d.save === 'object') saves.set(d.id.slice(6), { name: d.save.name, lv: d.save.lv, gold: d.save.gold, cls: d.save.cls, t: d.t });
+    const out = [];
+    for (const a of all) {
+      if (!a || typeof a.id !== 'string' || a.id.startsWith('__')) continue;
+      const user = a.id.startsWith('u-') ? a.id.slice(2) : a.id;
+      const nick = nickOf(a);
+      const sv = saves.get(a.id) || {};
+      const hay = (user + ' ' + nick + ' ' + (sv.name || '')).toLowerCase();
+      if (low && !hay.includes(low)) continue;
+      out.push({ user, nick, hasPw: !!a.pw, created: a.created || 0, google: !a.pw && !!a.email, name: sv.name || null, lv: sv.lv || null, gold: sv.gold || null, cls: sv.cls || null, seen: sv.t || 0 });
+      if (out.length >= 80) break;
+    }
+    out.sort((x, y) => (y.seen || 0) - (x.seen || 0));
+    return out;
+  }
+
+  /** 관리자: 비밀번호 재설정 (원래 비번을 보지 않고 새 비번으로 덮어쓴다). 비번은 scrypt 해시로만 저장한다. */
+  async adminSetPw(id, newPw) {
+    if (typeof newPw !== 'string' || newPw.length < 6 || newPw.length > 64) return { error: 'bad_password' };
+    const salt = crypto.randomBytes(16);
+    const hash = (await scrypt(newPw, salt)).toString('base64');
+    return this.store.txn([id], (m) => {
+      const a = m[id];
+      if (!a) return { error: 'no_account' };
+      if (!a.pw) return { error: 'no_pw' };
+      a.pw = { salt: salt.toString('base64'), hash };
+      return { ok: true };
+    });
+  }
   async raw(id) { return this.store.get(id); }
 
   /** 닉네임 변경 (아이디는 그대로). 2~12자, 다른 사람의 닉네임/아이디와 겹치면 안 되고, 30초에 한 번만 바꿀 수 있다. */

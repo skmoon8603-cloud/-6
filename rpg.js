@@ -144,6 +144,22 @@ function http(app, { store, auth, accounts }) {
     return { body: { ok: true, t } };
   }));
 
+  // 관리자: 계정 조회 (비밀번호는 돌려주지 않음) + 비밀번호 재설정
+  app.get('/api/rpg/admin/lookup', wrap(async (req, uid) => {
+    if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
+    const q = String((req.query && req.query.q) || '').slice(0, 40);
+    return { body: { list: await accounts.adminFind(q) } };
+  }));
+  app.post('/api/rpg/admin/resetpw', wrap(async (req, uid) => {
+    if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
+    const user = String((req.body && req.body.user) || '').normalize('NFC').trim().toLowerCase();
+    const pw = String((req.body && req.body.pw) || '');
+    if (!user) return { status: 400, body: { error: 'bad_user' } };
+    const r = await accounts.adminSetPw('u-' + user, pw);
+    if (r.error) return { status: 400, body: r };
+    return { body: { ok: true } };
+  }));
+
   app.post('/api/rpg/grantdone', wrap(async (req, uid) => {
     const gid = String((req.body && req.body.id) || '');
     if (!GRANTS.some((g) => g.id === gid && !g.keep)) return { status: 400, body: { error: 'bad_grant' } };
