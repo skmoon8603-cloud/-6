@@ -29,7 +29,12 @@ GRANTS.push({ id: 'cls-admin-spirit-1117', admin: true, setCls: 'spirit' }); // 
 GRANTS.push({ id: 'cls-admin-spirit-1118', admin: true, setCls: 'spirit' }); // (다시) 예전 화면이 받기만 하고 적용을 못 해서 한 번 더
 GRANTS.push({ id: 'gold-admin-1117', admin: true, goldAdd: 200000000 }); // 관리자 +2억 골드
 const grantDoc = (uid) => '__rpggrant:' + uid;
-const MAPS = /^[a-z]{2,12}$/;
+const MAPS = /^[a-z][a-z0-9]{1,11}$/; // 맵 이름 (shaft1 처럼 숫자도 됨)
+// 탄광 제 1갱도 바위: 누가 깼는지 모두 함께 본다 (바위 번호 → 다시 생기는 시각). 속에 든 광석은 서버가 정한다.
+const ROCKS = new Map();
+const ROCK_MS = 30000;
+const ORE_ODDS = [['diamond', .1], ['sapphire', 2], ['ruby', 3], ['gold', 5], ['silver', 10], ['coal', 30], ['stone', 50]];
+const rollOre = () => { let r = Math.random() * 100.1; for (const [k, p] of ORE_ODDS) { if (r < p) return k; r -= p; } return 'stone'; };
 const SEATS = { moto: 1, bonggu: 2, lambo: 2 }; // 탈것 뒷자리
 const VEH_OK = new Set(['kick', 'fixie', 'moto', 'bonggu', 'lambo']);
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
@@ -529,6 +534,15 @@ function attach(io, { auth, accounts, store }) {
       if (!EVT.on || socket.data.map !== 'village' || !d || +d.stage !== EVT.stage || Date.now() - EVT.stageT < 4000) return;
       EVT.stage++; EVT.stageT = Date.now(); if (EVT.stage > 6) return evtEnd(true);
       ns.emit('evt', { on: 1, stage: EVT.stage, split: 1 });
+    });
+    socket.on('rock:sync', () => { const now = Date.now(); const l = []; for (const [i, t] of ROCKS) { if (t <= now) ROCKS.delete(i); else l.push([i, t - now]); } socket.emit('rocks', l); });
+    socket.on('rock:hit', (d) => {
+      if (socket.data.map !== 'shaft1' || !d) return; const i = Math.floor(+d.i); if (!(i >= 0 && i < 3000)) return;
+      const now = Date.now(); if (now - (socket.data.rockT || 0) < 850) { socket.emit('rock:no', { i, ms: Math.max(0, (ROCKS.get(i) || 0) - now) }); return; }
+      if ((ROCKS.get(i) || 0) > now) { socket.emit('rock:no', { i, ms: ROCKS.get(i) - now }); return; }
+      socket.data.rockT = now; ROCKS.set(i, now + ROCK_MS); if (ROCKS.size > 4000) for (const [k, t] of ROCKS) if (t <= now) ROCKS.delete(k);
+      socket.emit('rock:ok', { i, o: rollOre(), ms: ROCK_MS });
+      socket.to('m:shaft1').emit('rock', { i, ms: ROCK_MS, by: uid });
     });
     socket.on('admin:spawn', (d) => { // 관리자: /드래곤 — 지금 있는 맵의 방장에게 드래곤을 소환하게 한다
       if (uid !== ADMIN_ID || !d || d.t !== 'dragon') return; const m = socket.data.map; if (!m) return;
