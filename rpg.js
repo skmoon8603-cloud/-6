@@ -223,7 +223,7 @@ function attach(io, { auth, accounts, store }) {
   // 1마리 → 2 → 4 → 8 → 16 → 32 → 64 마리로 분열. 기여도(준 피해)에 따라 80만 골드 · 슬라임 점액 1만 개 · 레벨 9 만큼의 경험치를 나눈다.
   const EVT = { on: false, stage: 0, t: 0, stageT: 0, contrib: new Map(), names: new Map(), day: '', warned: '' };
   const kstNow = () => new Date(Date.now() + 9 * 3600e3);
-  const evtStart = () => { const d = kstNow(); Object.assign(EVT, { on: true, stage: 0, t: Date.now(), stageT: Date.now(), contrib: new Map(), names: new Map(), day: d.toISOString().slice(0, 10) }); ns.emit('evt', { on: 1, stage: 0, intro: 1 }); ns.emit('tr:msg', '🟢 23시 서버 이벤트! 평화의 마을에 거대 슬라임이 나타났어요!'); };
+  const evtStart = () => { const d = kstNow(); Object.assign(EVT, { on: true, stage: 0, t: Date.now(), stageT: Date.now(), contrib: new Map(), names: new Map(), day: d.toISOString().slice(0, 10) }); ns.emit('evt', { on: 1, stage: 0, intro: 1 }); ns.emit('tr:msg', '🟢 서버 이벤트! 평화의 마을에 거대 슬라임이 나타났어요! (15분마다)'); };
   const evtEnd = (full) => {
     if (!EVT.on) return; EVT.on = false; const f = full ? 1 : Math.min(1, EVT.stage / 7);
     const list = [...EVT.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1;
@@ -231,11 +231,11 @@ function attach(io, { auth, accounts, store }) {
     list.forEach(([u, c], i) => { const q = byUid.get(u); if (!q) return; const sh = c / total; q.emit('evt:reward', { gold: Math.round(800000 * sh * f), gel: Math.round(10000 * sh * f), lv: Math.round(9 * sh * f * 100) / 100, pct: Math.round(sh * 1000) / 10, rank: i + 1, n: list.length, full: full ? 1 : 0 }); });
   };
   const evtRank = () => { const list = [...EVT.contrib.entries()].filter(([u]) => u !== ADMIN_ID).sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1; return list.slice(0, 40).map(([u, c]) => [u, EVT.names.get(u) || '?', Math.round(c / total * 1000) / 10]); };
+  const EVT_MS = 12 * 60e3; // 한 판은 최대 12분 (못 잡으면 잡은 만큼 보상하고 종료 → 다음 15분 전에 끝남)
   setInterval(() => {
-    const d = kstNow(), h = d.getUTCHours(), m = d.getUTCMinutes(), day = d.toISOString().slice(0, 10);
-    if (h === 22 && m >= 55 && EVT.warned !== day) { EVT.warned = day; ns.emit('tr:msg', '⏰ 곧 23시! 평화의 마을에 거대 슬라임이 나타나요 (서버 이벤트)'); }
-    if (h === 23 && !EVT.on && EVT.day !== day) evtStart();
-    if (EVT.on && h !== 23 && Date.now() - EVT.t > 3600e3) evtEnd(false); // 1시간이 지나도 못 잡으면 잡은 만큼만 보상
+    const d = kstNow(), m = d.getUTCMinutes(), stamp = d.toISOString().slice(0, 16); // 분 단위 (같은 분에 두 번 시작 방지)
+    if (m % 15 === 0 && !EVT.on && EVT.startedAt !== stamp) { EVT.startedAt = stamp; evtStart(); } // 매시 00·15·30·45분
+    if (EVT.on && Date.now() - EVT.t > EVT_MS) evtEnd(false);
     if (EVT.on) ns.emit('evt:rank', { stage: EVT.stage, list: evtRank() });
   }, 2000).unref?.();
   // 달콩빔 하루 사용 횟수 (한국 시간 기준 날짜마다 10번)
