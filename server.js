@@ -1,4 +1,5 @@
 'use strict';
+process.on('unhandledRejection', (e) => { console.error('[서버] 처리되지 않은 오류 (서버는 계속 켜 둠):', e && e.stack || e); });
 /**
  * RANDOM FOOTBALL 서버
  *  - Express: 정적 파일(public/) + REST(/api/catalog, /api/pull, /api/inventory, /healthz)
