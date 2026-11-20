@@ -47,8 +47,8 @@ const ROCKS = new Map();
 const ROCK_MS = 30000;
 const ORE_ODDS = [['diamond', .1], ['sapphire', 2], ['ruby', 3], ['gold', 5], ['silver', 10], ['coal', 30], ['stone', 50]];
 const rollOre = () => { let r = Math.random() * 100.1; for (const [k, p] of ORE_ODDS) { if (r < p) return k; r -= p; } return 'stone'; };
-const SEATS = { moto: 1, bonggu: 2, lambo: 2 }; // 탈것 뒷자리
-const VEH_OK = new Set(['kick', 'fixie', 'moto', 'bonggu', 'lambo']);
+const SEATS = { moto: 1, bonggu: 2, lambo: 2, heli: 2 }; // 탈것 뒷자리
+const VEH_OK = new Set(['kick', 'fixie', 'moto', 'bonggu', 'lambo', 'heli']);
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
 const word = (v) => (typeof v === 'string' && /^[a-z]{1,10}$/.test(v) ? v : '');
 const itemId = (v) => (typeof v === 'string' && /^[a-z0-9_]{1,14}$/.test(v) ? v : '');
@@ -321,7 +321,7 @@ function attach(io, { auth, accounts, store }) {
   // ===== 채널(서버 #1~#15): 채널마다 최대 12명, 같은 채널 사람끼리만 같은 맵에서 보인다 =====
   const CH_N = 15, CH_MAX = 12;
   const baseOf = (r) => String(r || '').slice(String(r || '').indexOf('|') + 1);
-  const roomOf = (ch, map) => (map.startsWith('arena') ? map : ch + '|' + map); // 결투장은 채널 상관없이
+  const roomOf = (ch, map) => ch + '|' + map; // 결투장·광산도 채널마다 따로
   const chCount = () => { const c = new Array(CH_N + 1).fill(0); for (const s of byUid.values()) if (s.data.ch) c[s.data.ch]++; return c; };
   const bossDead = new Map(); // map -> 보스가 쓰러진 시각 (다시 나타나기까지 10초)
   const bd = (m) => (bossDead.has(m) ? Date.now() - bossDead.get(m) : null);
@@ -362,6 +362,8 @@ function attach(io, { auth, accounts, store }) {
       if (chCount()[n] >= CH_MAX) return socket.emit('tr:msg', '그 채널은 꽉 찼어요 (' + CH_MAX + '명)');
       const oldRoom = socket.data.room; if (socket.data.endTrades) socket.data.endTrades('상대가 다른 채널로 옮겼어요');
       if (oldRoom) { socket.leave('m:' + oldRoom); socket.to('m:' + oldRoom).emit('vc', { t: 'bye', from: uid }); }
+      for (const q of byUid.values()) if (q.data.ride === uid) { q.data.ride = null; q.emit('ride:off', { why: '운전자가 다른 채널로 옮겨서 내렸어요' }); }
+      if (socket.data.ride) { const dr = byUid.get(socket.data.ride); if (dr) dr.emit('tr:msg', ((socket.data.p && socket.data.p[1]) || '누군가') + ' 님이 내렸어요'); }
       socket.data.ch = n; socket.data.room = ''; socket.data.map = ''; socket.data.ride = null; if (oldRoom) pickHost(oldRoom);
       socket.emit('ch', { ch: n, n: CH_N, max: CH_MAX, moved: 1 });
     });
@@ -522,7 +524,7 @@ function attach(io, { auth, accounts, store }) {
       if (socket.data.map !== 'village') return;
       const now = Date.now();
       for (const [k, D] of duels) if (now - D.t > 60000) duels.delete(k);
-      pend = pend.filter((q) => now - q.t < 15000 && q.uid !== uid && byUid.get(q.uid) && byUid.get(q.uid).data.map === 'village');
+      pend = pend.filter((q) => now - q.t < 15000 && q.uid !== uid && byUid.get(q.uid) && byUid.get(q.uid).data.map === 'village' && byUid.get(q.uid).data.ch === socket.data.ch);
       const other = pend.shift();
       if (!other) { pend.push({ uid, t: now }); socket.emit('duel:wait'); return; }
       const id = Math.random().toString(36).slice(2, 8);
@@ -536,13 +538,13 @@ function attach(io, { auth, accounts, store }) {
       if (socket.data.map !== 'village') return;
       const now = Date.now(); lobbies = lobbies.filter((L) => !L.done);
       if (lobbies.some((L) => L.solo === uid || L.team.includes(uid))) return;
-      const L = { id: Math.random().toString(36).slice(2, 8), solo: uid, team: [], t: now, done: false }; lobbies.push(L);
+      const L = { id: Math.random().toString(36).slice(2, 8), solo: uid, team: [], t: now, done: false, ch: socket.data.ch }; lobbies.push(L);
       const nm = (socket.data.p && socket.data.p[1]) || socket.data.nick || '?';
-      ns.to('m:village').emit('tr:msg', '⚔ ' + nm + ' 님이 1:다수 결투를 열었어요! 15초 안에 결투 심판 바론에게 「여럿 쪽 참가」를 눌러 주세요');
+      ns.to('m:' + socket.data.room).emit('tr:msg', '⚔ ' + nm + ' 님이 1:다수 결투를 열었어요! 15초 안에 결투 심판 바론에게 「여럿 쪽 참가」를 눌러 주세요');
       socket.emit('duel:lobby', { role: 'solo', n: 0 });
       setTimeout(() => {
-        L.done = true; const s0 = byUid.get(L.solo); const team = L.team.filter((u) => { const q = byUid.get(u); return q && q.data.map === 'village'; });
-        if (!s0 || s0.data.map !== 'village') { team.forEach((u) => { const q = byUid.get(u); if (q) q.emit('duel:cancel'); }); return; }
+        L.done = true; const s0 = byUid.get(L.solo); const team = L.team.filter((u) => { const q = byUid.get(u); return q && q.data.map === 'village' && q.data.ch === L.ch; });
+        if (!s0 || s0.data.map !== 'village' || s0.data.ch !== L.ch) { team.forEach((u) => { const q = byUid.get(u); if (q) q.emit('duel:cancel'); }); return; }
         if (!team.length) { s0.emit('tr:msg', '아무도 참가하지 않아서 1:다수 결투가 취소됐어요'); s0.emit('duel:cancel'); return; }
         const key = 'arena' + Array.from({ length: 5 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('');
         const sides = { [L.solo]: 0 }; team.forEach((u) => { sides[u] = 1; });
@@ -552,7 +554,7 @@ function attach(io, { auth, accounts, store }) {
     });
     socket.on('duel:team', () => {
       if (socket.data.map !== 'village') return;
-      const L = lobbies.find((x) => !x.done && x.solo !== uid && Date.now() - x.t < 15000);
+      const L = lobbies.find((x) => !x.done && x.solo !== uid && x.ch === socket.data.ch && Date.now() - x.t < 15000);
       if (!L) return socket.emit('tr:msg', '지금 열린 1:다수 결투가 없어요');
       if (L.team.includes(uid)) return; if (L.team.length >= 4) return socket.emit('tr:msg', '여럿 쪽 자리가 꽉 찼어요 (최대 4명)');
       L.team.push(uid); const nm = (socket.data.p && socket.data.p[1]) || '?';
@@ -642,12 +644,13 @@ function attach(io, { auth, accounts, store }) {
       EVT.stage++; EVT.stageT = Date.now(); if (EVT.stage > 6) return evtEnd(true);
       ns.emit('evt', { on: 1, stage: EVT.stage, split: 1 });
     });
-    socket.on('rock:sync', () => { const now = Date.now(); const l = []; for (const [i, t] of ROCKS) { if (t <= now) ROCKS.delete(i); else l.push([i, t - now]); } socket.emit('rocks', l); });
+    socket.on('rock:sync', () => { const now = Date.now(), pre = socket.data.ch + ':'; const l = []; for (const [k, t] of ROCKS) { if (t <= now) ROCKS.delete(k); else if (k.startsWith(pre)) l.push([+k.slice(pre.length), t - now]); } socket.emit('rocks', l); });
     socket.on('rock:hit', (d) => {
       if (socket.data.map !== 'shaft1' || !d) return; const i = Math.floor(+d.i); if (!(i >= 0 && i < 3000)) return;
-      const now = Date.now(); if (now - (socket.data.rockT || 0) < 850) { socket.emit('rock:no', { i, ms: Math.max(0, (ROCKS.get(i) || 0) - now) }); return; }
-      if ((ROCKS.get(i) || 0) > now) { socket.emit('rock:no', { i, ms: ROCKS.get(i) - now }); return; }
-      socket.data.rockT = now; ROCKS.set(i, now + ROCK_MS); if (ROCKS.size > 4000) for (const [k, t] of ROCKS) if (t <= now) ROCKS.delete(k);
+      const now = Date.now(); const rk = socket.data.ch + ':' + i; // 돌은 같은 채널끼리 공유
+      if (now - (socket.data.rockT || 0) < 850) { socket.emit('rock:no', { i, ms: Math.max(0, (ROCKS.get(rk) || 0) - now) }); return; }
+      if ((ROCKS.get(rk) || 0) > now) { socket.emit('rock:no', { i, ms: ROCKS.get(rk) - now }); return; }
+      socket.data.rockT = now; ROCKS.set(rk, now + ROCK_MS); if (ROCKS.size > 4000) for (const [k, t] of ROCKS) if (t <= now) ROCKS.delete(k);
       socket.emit('rock:ok', { i, o: rollOre(), ms: ROCK_MS });
       socket.to('m:' + socket.data.room).emit('rock', { i, ms: ROCK_MS, by: uid });
     });
@@ -706,7 +709,7 @@ function attach(io, { auth, accounts, store }) {
       socket.data.ct = now;
       socket.to('m:' + m).emit('c', { u: uid, n: (socket.data.p && socket.data.p[1]) || socket.data.nick, t: text });
     });
-    socket.on('disconnect', () => { const m = socket.data.room; if (byUid.get(uid) === socket) ptLeave(uid); if (socket.data.endTrades) socket.data.endTrades('상대가 접속을 끊었어요'); if (m) socket.to('m:' + m).emit('vc', { t: 'bye', from: uid }); if (byUid.get(uid) === socket) byUid.delete(uid); if (m) pickHost(m); });
+    socket.on('disconnect', () => { const m = socket.data.room; for (const q of byUid.values()) if (q !== socket && q.data.ride === uid) { q.data.ride = null; q.emit('ride:off', { why: '운전자가 나가서 내렸어요' }); } if (byUid.get(uid) === socket) ptLeave(uid); if (socket.data.endTrades) socket.data.endTrades('상대가 접속을 끊었어요'); if (m) socket.to('m:' + m).emit('vc', { t: 'bye', from: uid }); if (byUid.get(uid) === socket) byUid.delete(uid); if (m) pickHost(m); });
   });
   let tick = 0; const psSig = new Map();
   const timer = setInterval(() => {
