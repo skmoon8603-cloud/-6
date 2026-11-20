@@ -30,6 +30,9 @@ const C = require(modPath('catalog'));
 
 const PORT = process.env.PORT || 3000;
 const app = express();
+app.use(require('compression')()); // 데이터 전송량 줄이기 (HTML·JS·JSON 압축)
+// 음악·이미지는 브라우저에 일주일 저장해 두고 다시 받지 않는다
+app.use((req, res, next) => { if (/\.(mp3|jpg|png)$/.test(req.path)) { const sh = res.setHeader.bind(res); res.setHeader = (k, v) => sh(k, /^cache-control$/i.test(k) ? 'public, max-age=604800' : v); res.setHeader('Cache-Control', 'public, max-age=604800'); } next(); });
 app.set('trust proxy', 1); // Render 등 프록시 뒤에서 실제 IP 사용
 app.disable('x-powered-by');
 app.use(express.json({ limit: '32kb' }));
@@ -102,6 +105,7 @@ const io = new Server(server, {
   pingInterval: 10000,
   pingTimeout: 15000,
   maxHttpBufferSize: 1e5,
+  perMessageDeflate: { threshold: 512 }, // 실시간 데이터도 압축
 });
 (async () => {
   await store.init();
