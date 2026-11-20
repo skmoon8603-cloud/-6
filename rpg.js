@@ -474,7 +474,13 @@ function attach(io, { auth, accounts, store }) {
     let evN = 0, evT = 0;
     const flood = () => { const now = Date.now(); if (now - evT > 1000) { evT = now; evN = 0; } return ++evN > 300; };
     // 방장 → 같은 맵 사람들: 몬스터 상태
-    socket.on('es', (l) => { if (!amHost() || !Array.isArray(l) || l.length > 150 || flood()) return; socket.to('m:' + socket.data.map).volatile.emit('es', l); });
+    socket.on('es', (l) => {
+      if (!amHost() || !l || flood()) return;
+      if (Array.isArray(l)) { if (l.length > 150) return; }
+      else if (typeof l === 'object') { const d = Array.isArray(l.d) ? l.d.slice(0, 150) : [], g = Array.isArray(l.g) ? l.g.slice(0, 150).map((x) => String(x).slice(0, 20)) : []; l = { d, g }; } // 바뀐 몬스터만 (전송량 절약)
+      else return;
+      socket.to('m:' + socket.data.map).volatile.emit('es', l);
+    });
     // 전투 이벤트 중계
     socket.on('ev', (d) => {
       const m = socket.data.map;
@@ -683,7 +689,7 @@ function attach(io, { auth, accounts, store }) {
     });
     socket.on('disconnect', () => { const m = socket.data.map; if (byUid.get(uid) === socket) ptLeave(uid); if (socket.data.endTrades) socket.data.endTrades('상대가 접속을 끊었어요'); if (m) socket.to('m:' + m).emit('vc', { t: 'bye', from: uid }); if (byUid.get(uid) === socket) byUid.delete(uid); if (m) pickHost(m); });
   });
-  let tick = 0;
+  let tick = 0; const psSig = new Map();
   const timer = setInterval(() => {
     if (++tick % 20 === 0) ns.volatile.emit('n', byUid.size); // 2초마다 전체 접속자 수
     if (tick % 5 === 0) for (const T of parties.values()) { // 0.5초마다 파티원 위치·체력
@@ -692,8 +698,15 @@ function attach(io, { auth, accounts, store }) {
     }
     const maps = new Map();
     for (const s of byUid.values()) { if (!s.data.p || !s.data.map) continue; let l = maps.get(s.data.map); if (!l) maps.set(s.data.map, l = []); l.push(s.data.p); }
-    for (const [m, list] of maps) if (list.length > 1) ns.to('m:' + m).volatile.emit('ps', list.slice(0, 40));
-    else ns.to('m:' + m).volatile.emit('ps', list);
+    // 전송량 줄이기: 1초마다 전체 목록, 그 사이엔 바뀐 사람만 ('pd')
+    const full = tick % 10 === 0;
+    for (const [m, list] of maps) {
+      const L = list.slice(0, 40);
+      if (full) { ns.to('m:' + m).volatile.emit('ps', L); for (const p of L) psSig.set(p[0], JSON.stringify(p)); continue; }
+      const d = []; for (const p of L) { const sg = JSON.stringify(p); if (psSig.get(p[0]) !== sg) { psSig.set(p[0], sg); d.push(p); } }
+      if (d.length) ns.to('m:' + m).volatile.emit('pd', d);
+    }
+    if (full && psSig.size > byUid.size * 2 + 100) { const live = new Set([...byUid.values()].map((s) => s.data.p && s.data.p[0])); for (const k of psSig.keys()) if (!live.has(k)) psSig.delete(k); }
   }, 100);
   if (timer.unref) timer.unref();
   return { stop() { clearInterval(timer); }, count: () => byUid.size };
