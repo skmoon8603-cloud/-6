@@ -33,7 +33,7 @@ const nickOf = (a) => (a.nickSet && a.nick ? a.nick : a.id.startsWith('u-') ? a.
 
 const STAKES = [0, 1000, 2000, 5000, 10000];
 const MAX_BAL = 1e9;
-const cleanNick = (n) => (String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 12));
+const cleanNick = (n) => require('./profanity').clean(String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 12));
 
 const pub = (a) => ({
   // 닉네임은 로그인 아이디로 고정
@@ -214,6 +214,24 @@ class Accounts {
   }
 
   /** [관리자] 계정 삭제 (본인/내기 진행 중인 계정은 삭제 불가) */
+  /** 본인 계정 삭제 (플레이스토어 정책): 비밀번호 계정은 비밀번호 확인, 그 밖의 계정은 로그인된 상태로만. 관리자 계정은 지울 수 없다 */
+  async selfDelete(id, password, viaSession) {
+    if (!id || String(id).startsWith('__') || isAdmin(id)) return { error: 'forbidden' };
+    const a = await this.store.get(id);
+    if (!a) return { error: 'no_account' };
+    if (a.pw) {
+      if (typeof password !== 'string' || password.length > 64) return { error: 'bad_login' };
+      const u = String(id).replace(/^u-/, ''); const f = fails.get(u);
+      if (f && f.until > Date.now()) return { error: 'locked' };
+      const got = await scrypt(password, Buffer.from(a.pw.salt, 'base64'));
+      if (!crypto.timingSafeEqual(got, Buffer.from(a.pw.hash, 'base64'))) { const n = ((f && f.n) || 0) + 1; fails.set(u, { n, until: n >= 5 ? Date.now() + 300000 : 0 }); return { error: 'bad_login' }; }
+    } else if (!viaSession) return { error: 'bad_login' };
+    if (a.locked) return { error: 'locked' };
+    await this.store.remove(id);
+    console.log(`[계정] 본인 요청으로 계정 삭제: ${id}`);
+    return { ok: true };
+  }
+
   async adminDelete(adminId, targetId) {
     if (!isAdmin(adminId)) return { error: 'forbidden' };
     if (targetId === adminId) return { error: 'self' };

@@ -11,6 +11,10 @@ const ORIGINS = (process.env.RPG_ORIGINS || 'https://skmoon8603-cloud.github.io'
 const MAX_SAVE = 24000;
 const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (RPG에서 관리자 보상을 받는다)
 const docId = (uid) => '__rpg:' + uid;
+const REPORT_ID = '__rpgreports';
+const CONTACT = process.env.RPG_CONTACT || '관리자 이메일(준비 중)'; // 플레이스토어 등록 전에 Render 환경변수 RPG_CONTACT 에 문의 이메일을 넣는다
+const PRIVACY_HTML = "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>도박 RPG 개인정보처리방침</title><style>body{font-family:system-ui,sans-serif;max-width:720px;margin:0 auto;padding:24px;line-height:1.7;color:#222}h1{font-size:1.5em}h2{font-size:1.15em;margin-top:1.6em}</style></head><body>\n<h1>도박 RPG 개인정보처리방침</h1><p>시행일: 2026년 11월 20일</p>\n<p>「도박 RPG」(이하 \"게임\")는 이용자의 개인정보를 소중히 다루며, 게임 운영에 꼭 필요한 정보만 모읍니다. 이 게임은 실제 돈을 거는 도박이 아니며, 게임 안의 골드는 현금으로 바꿀 수 없습니다.</p>\n<h2>1. 모으는 정보</h2><ul><li>계정 정보: 아이디, 비밀번호(복구할 수 없는 암호화 값으로만 저장), 닉네임. Google 로그인을 쓰면 Google이 넘겨주는 이메일 주소와 이름.</li><li>게임 기록: 캐릭터 이름·레벨·아이템·골드 등 저장 데이터, 결투·랭킹 기록.</li><li>이용자가 쓴 글: 채팅, 표지판 댓글, 신고 내용.</li><li>접속 기록: 접속 IP 주소(과도한 요청 차단용, 따로 보관하지 않음).</li></ul>\n<h2>2. 쓰는 목적</h2><ul><li>로그인과 게임 저장·불러오기</li><li>다른 이용자와 함께 하는 실시간 플레이(채팅·거래·파티·결투)와 랭킹</li><li>욕설·괴롭힘 신고 처리와 부정 이용 방지</li></ul>\n<h2>3. 보관 기간</h2><p>계정을 삭제할 때까지 보관합니다. 계정을 삭제하면 계정 정보와 게임 저장 데이터를 바로 지웁니다. 신고 기록은 처리 후 최대 90일까지 보관할 수 있습니다.</p>\n<h2>4. 다른 곳에 주는 정보</h2><p>개인정보를 팔거나 광고 목적으로 남에게 주지 않습니다. 서버 운영을 위해 호스팅 업체(Render, GitHub)의 서버에 데이터가 저장됩니다.</p>\n<h2>5. 계정 삭제</h2><p>게임 안 「상태 → ⚙ 계정」 메뉴에서, 또는 <a href=\"./delete\">계정 삭제 페이지</a>에서 언제든 계정을 지울 수 있습니다. 같은 계정을 쓰는 RANDOM FOOTBALL 기록도 함께 지워집니다.</p>\n<h2>6. 아동</h2><p>이 게임은 모의 도박 요소가 있어 만 18세 미만을 대상으로 하지 않습니다.</p>\n<h2>7. 문의</h2><p>개인정보 관련 문의: {{CONTACT}}</p>\n</body></html>";
+const DELETE_HTML = "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>도박 RPG 계정 삭제</title><style>body{font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;line-height:1.6;color:#222}input,button{font-size:1em;padding:10px;width:100%;box-sizing:border-box;margin:6px 0}button{background:#c62828;color:#fff;border:0;border-radius:6px}#m{font-weight:bold}</style></head><body>\n<h1>도박 RPG 계정 삭제</h1><p>아이디와 비밀번호를 넣으면 계정과 게임 저장 데이터가 <b>바로, 되돌릴 수 없게</b> 지워집니다. 같은 계정을 쓰는 RANDOM FOOTBALL 기록도 함께 지워집니다.</p>\n<p>Google 로그인 계정은 게임 안 「상태 → ⚙ 계정」에서 지우거나, {{CONTACT}} 으로 요청해 주세요.</p>\n<input id=\"u\" placeholder=\"아이디\" autocomplete=\"username\"><input id=\"p\" type=\"password\" placeholder=\"비밀번호\" autocomplete=\"current-password\"><label><input type=\"checkbox\" id=\"c\" style=\"width:auto\"> 되돌릴 수 없다는 것을 이해했어요</label><button id=\"b\">계정 영구 삭제</button><p id=\"m\"></p>\n<script>b.onclick=async()=>{if(!c.checked){m.textContent='확인란을 체크해 주세요';return;}b.disabled=true;m.textContent='처리 중…';try{const r=await fetch('/api/rpg/deleteweb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:u.value,pw:p.value})});const j=await r.json().catch(()=>({}));m.textContent=r.ok?'계정이 삭제됐어요. 이용해 주셔서 고마워요.':j.error==='locked'?'잠시 후 다시 시도해 주세요':j.error==='forbidden'?'이 계정은 지울 수 없어요':'아이디 또는 비밀번호가 틀렸어요';}catch(e){m.textContent='서버에 연결하지 못했어요';}b.disabled=false;};</script></body></html>";
 // 운영자 지급: 해당 계정이 다음에 게임을 시작할 때 한 번만 적용된다 (받은 기록은 '__rpggrant:<계정>' 에 남는다)
 const GRANTS = [
   { id: 'lv20-taeheeim-1115', nick: '이태희', name: '이태희임', lv: 20 }, // 계정 닉네임 「이태희」(캐릭터 이름 「이태희임」) 레벨 20
@@ -40,8 +44,9 @@ const VEH_OK = new Set(['kick', 'fixie', 'moto', 'bonggu', 'lambo']);
 const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; };
 const word = (v) => (typeof v === 'string' && /^[a-z]{1,10}$/.test(v) ? v : '');
 const itemId = (v) => (typeof v === 'string' && /^[a-z0-9_]{1,14}$/.test(v) ? v : '');
-const cleanChat = (t) => String(t == null ? '' : t).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 60);
-const cleanName = (n) => String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 8);
+const PROF = require('./profanity');
+const cleanChat = (t) => PROF.clean(String(t == null ? '' : t).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 60));
+const cleanName = (n) => PROF.clean(String(n || '').replace(/[^\p{L}\p{N} _\-]/gu, '').trim().slice(0, 8));
 
 const hits = new Map();
 function limited(key, max, windowMs) {
@@ -144,6 +149,29 @@ function http(app, { store, auth, accounts }) {
     return { body: { ok: true, t } };
   }));
 
+  // 본인 계정 삭제 (게임 안: 로그인된 상태 + 비밀번호 / 웹: 아이디 + 비밀번호)
+  const wipe = async (id) => { try { await store.remove(docId(id)); } catch (e) { console.error('[rpg] 저장 삭제 실패', e.message); } };
+  app.post('/api/rpg/deleteme', wrap(async (req, uid) => {
+    const r = await accounts.selfDelete(uid, req.body && req.body.pw, true);
+    if (r.error) return { status: 400, body: r };
+    await wipe(uid); return { body: { ok: true } };
+  }));
+  app.post('/api/rpg/deleteweb', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      if (limited('del:' + req.ip, 5, 60000)) return res.status(429).json({ error: 'locked' });
+      const user = String((req.body && req.body.user) || '').normalize('NFC').trim().toLowerCase().slice(0, 20);
+      if (!user) return res.status(400).json({ error: 'bad_login' });
+      const r = await accounts.selfDelete('u-' + user, req.body && req.body.pw, false);
+      if (r.error) return res.status(400).json(r);
+      await wipe('u-' + user); res.json({ ok: true });
+    } catch (e) { console.error('[rpg]', e); res.status(500).json({ error: 'server_error' }); }
+  });
+  // 관리자: 신고 목록
+  app.get('/api/rpg/admin/reports', wrap(async (_req, uid) => {
+    if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
+    const d = await store.get(REPORT_ID); return { body: { list: (d && d.list) || [] } };
+  }));
   // 관리자: 계정 조회 (비밀번호는 돌려주지 않음) + 비밀번호 재설정
   app.get('/api/rpg/admin/lookup', wrap(async (req, uid) => {
     if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
@@ -209,6 +237,9 @@ function http(app, { store, auth, accounts }) {
     res.setHeader('Cache-Control', 'no-cache');
     res.type('html').send(html);
   });
+  // 플레이스토어용: 개인정보처리방침 · 계정 삭제 페이지
+  app.get('/rpg/privacy', (_req, res) => { res.type('html').send(PRIVACY_HTML.replace(/{{CONTACT}}/g, CONTACT)); });
+  app.get('/rpg/delete', (_req, res) => { res.type('html').send(DELETE_HTML.replace(/{{CONTACT}}/g, CONTACT)); });
   app.get('/rpg/:file', (req, res) => {
     if (!/^[\w.\-]{1,60}$/.test(req.params.file)) return res.status(404).end();
     res.redirect(PAGES + req.params.file);
@@ -385,7 +416,7 @@ function attach(io, { auth, accounts, store }) {
       for (const T of trades.values()) if ([T.a, T.b].includes(uid) || [T.a, T.b].includes(t.data.uid)) return socket.emit('tr:msg', '이미 거래 중이에요');
       const id = Math.random().toString(36).slice(2, 9);
       trades.set(id, { a: uid, b: t.data.uid, off: {}, lk: new Set(), ok: false, t: Date.now() });
-      t.emit('tr:ask', { id, op: (socket.data.p && socket.data.p[1]) || socket.data.nick });
+      t.emit('tr:ask', { id, from: uid, op: (socket.data.p && socket.data.p[1]) || socket.data.nick });
       socket.emit('tr:msg', '거래를 신청했어요. 상대의 대답을 기다리는 중…');
     });
     socket.on('tr:ans', (d) => {
@@ -580,6 +611,16 @@ function attach(io, { auth, accounts, store }) {
       const now = Date.now(); if (now - (socket.data.annT || 0) < 3000) return; socket.data.annT = now;
       const msg = String(t || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 60); if (!msg) return;
       ns.emit('ann', { t: msg, by: (socket.data.p && socket.data.p[1]) || '관리자' });
+    });
+    // 신고: 욕설·괴롭힘 등. 최근 채팅 몇 줄과 함께 저장 (관리자가 확인)
+    socket.on('rep', async (d) => {
+      if (!d || flood()) return; const now = Date.now(); if (now - (socket.data.repT || 0) < 10000) return socket.emit('tr:msg', '잠시 후 다시 신고해 주세요'); socket.data.repT = now;
+      const to = String(d.to || '').slice(0, 60), t = byUid.get(to);
+      const why = String(d.why || '').replace(/[\u0000-\u001f]/g, ' ').slice(0, 30), lines = (Array.isArray(d.log) ? d.log : []).slice(-8).map((x) => String(x).replace(/[\u0000-\u001f]/g, ' ').slice(0, 80));
+      const rec = { at: now, by: uid, byName: (socket.data.p && socket.data.p[1]) || socket.data.nick, to, toName: t ? ((t.data.p && t.data.p[1]) || t.data.nick) : String(d.name || '').slice(0, 12), why, lines };
+      try { await store.txn([REPORT_ID], (m) => { const x = m[REPORT_ID] || { id: REPORT_ID, list: [] }; x.list = [rec, ...(x.list || []).filter((r) => now - r.at < 90 * 864e5)].slice(0, 500); m[REPORT_ID] = x; }); } catch (e) { console.error('[rpg] 신고 저장 실패', e.message); }
+      socket.emit('tr:msg', '🚩 신고가 접수됐어요. 관리자가 확인할게요');
+      const adm = byUid.get(ADMIN_ID); if (adm) adm.emit('tr:msg', `🚩 신고: ${rec.byName} → ${rec.toName} (${why})`);
     });
     socket.on('c', (t) => {
       const m = socket.data.map, now = Date.now(), text = cleanChat(t);
