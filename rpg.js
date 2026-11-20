@@ -12,6 +12,13 @@ const MAX_SAVE = 24000;
 const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (RPG에서 관리자 보상을 받는다)
 const docId = (uid) => '__rpg:' + uid;
 const REPORT_ID = '__rpgreports';
+// 제재(채팅 금지·정지): { [uid]: { mute: 끝나는 시각, ban: 끝나는 시각 또는 -1(영구), why, name } }
+const SANC_ID = '__rpgsanction'; let SANC = null;
+async function sancLoad(store) { if (!SANC) { try { const d = await store.get(SANC_ID); SANC = (d && d.m) || {}; } catch (e) { SANC = {}; } } return SANC; }
+async function sancSave(store) { try { await store.txn([SANC_ID], (m) => { m[SANC_ID] = { id: SANC_ID, m: SANC }; }); } catch (e) { console.error('[rpg] 제재 저장 실패', e.message); } }
+const banLeft = (uid) => { const x = SANC && SANC[uid]; if (!x || !x.ban) return 0; return x.ban === -1 ? -1 : Math.max(0, x.ban - Date.now()); };
+const muteLeft = (uid) => { const x = SANC && SANC[uid]; return x && x.mute ? Math.max(0, x.mute - Date.now()) : 0; };
+const leftTxt = (ms) => ms === -1 ? '영구' : ms > 864e5 ? Math.ceil(ms / 864e5) + '일' : ms > 36e5 ? Math.ceil(ms / 36e5) + '시간' : Math.ceil(ms / 6e4) + '분';
 const CONTACT = process.env.RPG_CONTACT || '관리자 이메일(준비 중)'; // 플레이스토어 등록 전에 Render 환경변수 RPG_CONTACT 에 문의 이메일을 넣는다
 const PRIVACY_HTML = "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>도박 RPG 개인정보처리방침</title><style>body{font-family:system-ui,sans-serif;max-width:720px;margin:0 auto;padding:24px;line-height:1.7;color:#222}h1{font-size:1.5em}h2{font-size:1.15em;margin-top:1.6em}</style></head><body>\n<h1>도박 RPG 개인정보처리방침</h1><p>시행일: 2026년 11월 20일</p>\n<p>「도박 RPG」(이하 \"게임\")는 이용자의 개인정보를 소중히 다루며, 게임 운영에 꼭 필요한 정보만 모읍니다. 이 게임은 실제 돈을 거는 도박이 아니며, 게임 안의 골드는 현금으로 바꿀 수 없습니다.</p>\n<h2>1. 모으는 정보</h2><ul><li>계정 정보: 아이디, 비밀번호(복구할 수 없는 암호화 값으로만 저장), 닉네임. Google 로그인을 쓰면 Google이 넘겨주는 이메일 주소와 이름.</li><li>게임 기록: 캐릭터 이름·레벨·아이템·골드 등 저장 데이터, 결투·랭킹 기록.</li><li>이용자가 쓴 글: 채팅, 표지판 댓글, 신고 내용.</li><li>접속 기록: 접속 IP 주소(과도한 요청 차단용, 따로 보관하지 않음).</li></ul>\n<h2>2. 쓰는 목적</h2><ul><li>로그인과 게임 저장·불러오기</li><li>다른 이용자와 함께 하는 실시간 플레이(채팅·거래·파티·결투)와 랭킹</li><li>욕설·괴롭힘 신고 처리와 부정 이용 방지</li></ul>\n<h2>3. 보관 기간</h2><p>계정을 삭제할 때까지 보관합니다. 계정을 삭제하면 계정 정보와 게임 저장 데이터를 바로 지웁니다. 신고 기록은 처리 후 최대 90일까지 보관할 수 있습니다.</p>\n<h2>4. 다른 곳에 주는 정보</h2><p>개인정보를 팔거나 광고 목적으로 남에게 주지 않습니다. 서버 운영을 위해 호스팅 업체(Render, GitHub)의 서버에 데이터가 저장됩니다.</p>\n<h2>5. 계정 삭제</h2><p>게임 안 「상태 → ⚙ 계정」 메뉴에서, 또는 <a href=\"./delete\">계정 삭제 페이지</a>에서 언제든 계정을 지울 수 있습니다. 같은 계정을 쓰는 RANDOM FOOTBALL 기록도 함께 지워집니다.</p>\n<h2>6. 아동</h2><p>이 게임은 모의 도박 요소(게임 골드로만 하는 카지노)가 있어 만 15세 미만을 대상으로 하지 않습니다. 게임 골드와 아이템은 현금으로 사거나 팔 수 없습니다.</p>\n<h2>7. 문의</h2><p>개인정보 관련 문의: {{CONTACT}}</p>\n</body></html>";
 const DELETE_HTML = "<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>도박 RPG 계정 삭제</title><style>body{font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;line-height:1.6;color:#222}input,button{font-size:1em;padding:10px;width:100%;box-sizing:border-box;margin:6px 0}button{background:#c62828;color:#fff;border:0;border-radius:6px}#m{font-weight:bold}</style></head><body>\n<h1>도박 RPG 계정 삭제</h1><p>아이디와 비밀번호를 넣으면 계정과 게임 저장 데이터가 <b>바로, 되돌릴 수 없게</b> 지워집니다. 같은 계정을 쓰는 RANDOM FOOTBALL 기록도 함께 지워집니다.</p>\n<p>Google 로그인 계정은 게임 안 「상태 → ⚙ 계정」에서 지우거나, {{CONTACT}} 으로 요청해 주세요.</p>\n<input id=\"u\" placeholder=\"아이디\" autocomplete=\"username\"><input id=\"p\" type=\"password\" placeholder=\"비밀번호\" autocomplete=\"current-password\"><label><input type=\"checkbox\" id=\"c\" style=\"width:auto\"> 되돌릴 수 없다는 것을 이해했어요</label><button id=\"b\">계정 영구 삭제</button><p id=\"m\"></p>\n<script>b.onclick=async()=>{if(!c.checked){m.textContent='확인란을 체크해 주세요';return;}b.disabled=true;m.textContent='처리 중…';try{const r=await fetch('/api/rpg/deleteweb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:u.value,pw:p.value})});const j=await r.json().catch(()=>({}));m.textContent=r.ok?'계정이 삭제됐어요. 이용해 주셔서 고마워요.':j.error==='locked'?'잠시 후 다시 시도해 주세요':j.error==='forbidden'?'이 계정은 지울 수 없어요':'아이디 또는 비밀번호가 틀렸어요';}catch(e){m.textContent='서버에 연결하지 못했어요';}b.disabled=false;};</script></body></html>";
@@ -121,6 +128,7 @@ function http(app, { store, auth, accounts }) {
       if (limited('rpg:' + req.ip, 90, 10000)) return res.status(429).json({ error: 'too_many_requests' });
       const uid = who(req);
       if (!uid) return res.status(401).json({ error: 'unauthorized' });
+      if (store) { await sancLoad(store); if (banLeft(uid) && !/delete/.test(req.path)) return res.status(403).json({ error: 'banned', left: leftTxt(banLeft(uid)) }); }
       const r = await fn(req, uid);
       res.status(r.status || 200).json(r.body);
     } catch (e) { console.error('[rpg]', e && e.stack || e); res.status(500).json({ error: 'server_error' }); }
@@ -324,6 +332,7 @@ function attach(io, { auth, accounts, store }) {
       if (!s) return next(new Error('unauthorized'));
       const a = await accounts.get(s.uid);
       if (!a) return next(new Error('unauthorized'));
+      await sancLoad(store); const bl = banLeft(s.uid); if (bl) return next(new Error('banned:' + leftTxt(bl)));
       socket.data.uid = s.uid; socket.data.nick = a.nick;
       try { const d = await store.get(docId(s.uid)); socket.data.dkOk = DK_NAMES.has(a.nick) || !!(d && d.save && DK_NAMES.has(d.save.name)); } catch (e) { socket.data.dkOk = false; }
       next();
@@ -553,6 +562,7 @@ function attach(io, { auth, accounts, store }) {
     socket.on('sign:cmt', async (d) => {
       if (!d || !SIGN_MAPS.includes(d.m) || flood()) return;
       const now = Date.now(); if (now - (socket.data.cmtT || 0) < 3000) return socket.emit('tr:msg', '잠시 후 다시 써 주세요'); socket.data.cmtT = now;
+      if (muteLeft(uid)) return socket.emit('tr:msg', '🔇 채팅 금지 중이에요 (' + leftTxt(muteLeft(uid)) + ' 남음)');
       const t = cleanChat(d.t).slice(0, 60); if (!t) return;
       const S = { ...(signs[d.m] || { t: '' }) }; const c = { ...(S.c || {}) };
       if (!c[uid] && Object.keys(c).length >= 300) return socket.emit('tr:msg', '댓글이 너무 많아요');
@@ -636,9 +646,35 @@ function attach(io, { auth, accounts, store }) {
       socket.emit('tr:msg', '🚩 신고가 접수됐어요. 관리자가 확인할게요');
       const adm = byUid.get(ADMIN_ID); if (adm) adm.emit('tr:msg', `🚩 신고: ${rec.byName} → ${rec.toName} (${why})`);
     });
+    // 관리자: 신고 목록 · 처리 · 채팅 금지 · 정지
+    socket.on('adm:reps', async () => {
+      if (uid !== ADMIN_ID) return; await sancLoad(store);
+      const d = await store.get(REPORT_ID); const list = ((d && d.list) || []).slice(0, 100);
+      socket.emit('adm:reps', { list, sanc: Object.entries(SANC).filter(([u]) => banLeft(u) || muteLeft(u)).map(([u, x]) => ({ u, name: x.name, why: x.why, mute: muteLeft(u), ban: banLeft(u) })) });
+    });
+    socket.on('adm:done', async (d) => {
+      if (uid !== ADMIN_ID || !d) return; const at = +d.at;
+      try { await store.txn([REPORT_ID], (m) => { const x = m[REPORT_ID]; if (x && x.list) x.list = x.list.filter((r) => r.at !== at); }); } catch (e) {}
+      socket.emit('tr:msg', '✅ 신고를 처리 완료했어요');
+    });
+    socket.on('adm:sanc', async (d) => {
+      if (uid !== ADMIN_ID || !d) return; await sancLoad(store);
+      const to = String(d.to || '').slice(0, 60), kind = String(d.kind || ''), min = Math.max(0, Math.min(5256000, +d.min || 0));
+      if (!to || to === ADMIN_ID) return;
+      const x = SANC[to] || {}; x.name = String(d.name || x.name || '?').slice(0, 12); x.why = String(d.why || '').slice(0, 30);
+      const t = byUid.get(to);
+      if (kind === 'mute') { x.mute = Date.now() + min * 6e4; if (t) t.emit('tr:msg', '🔇 운영 정책 위반으로 ' + leftTxt(min * 6e4) + ' 동안 채팅이 금지됐어요'); }
+      else if (kind === 'ban') { x.ban = min ? Date.now() + min * 6e4 : -1; if (t) { t.emit('banned', { left: leftTxt(banLeft(to)), why: x.why }); setTimeout(() => { try { t.disconnect(true); } catch (e) {} }, 500); } }
+      else if (kind === 'clear') { delete x.mute; delete x.ban; if (t) t.emit('tr:msg', '✅ 제재가 풀렸어요'); }
+      else return;
+      SANC[to] = x; if (!x.mute && !x.ban) delete SANC[to]; await sancSave(store);
+      console.log(`[관리자] 제재 ${kind} ${to} ${min}분`);
+      socket.emit('tr:msg', '⚖ ' + x.name + ' : ' + (kind === 'mute' ? '채팅 금지 ' + leftTxt(min * 6e4) : kind === 'ban' ? '정지 ' + (min ? leftTxt(min * 6e4) : '영구') : '제재 해제'));
+    });
     socket.on('c', (t) => {
       const m = socket.data.map, now = Date.now(), text = cleanChat(t);
       if (!m || !text || now - (socket.data.ct || 0) < 800) return;
+      if (muteLeft(uid)) return socket.emit('tr:msg', '🔇 채팅 금지 중이에요 (' + leftTxt(muteLeft(uid)) + ' 남음)');
       socket.data.ct = now;
       socket.to('m:' + m).emit('c', { u: uid, n: (socket.data.p && socket.data.p[1]) || socket.data.nick, t: text });
     });
