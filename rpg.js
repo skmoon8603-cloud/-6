@@ -37,6 +37,11 @@ GRANTS.push({ id: 'dalkong-choi-1117', nick: '최범규 vr2', name: '최범규 v
 const DK_NAMES = new Set(['최범규 vr2']); // 달콩빔을 하루 10번 쓸 수 있는 사람 (계정 닉네임 또는 캐릭터 이름)
 GRANTS.push({ id: 'penalty-daege-1118', nick: '대게', name: '대게', lvAdd: -10, spDown: 10, apDown: 30, goldMul: 0.5 }); // 「대게」: 레벨 -10 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
 GRANTS.push({ id: 'lv91-songdoha-1120', nick: '섹시한 송도하', name: '섹시한 송도하', setLv: 91 }); // 「섹시한 송도하」 레벨 91 (다른 건 그대로)
+// 서버 복구 기념 (11/20): 칭호 「서버복구자」 + 경험치 2배권(1분) · 골드 2배권(1분) — 계정 닉네임이나 캐릭터 이름이 같으면 받는다
+for (const [k, nick, name] of [['songdoha', '섹시한 송도하', '섹시한 송도하'], ['songdoha2', '섹시한도하', '섹시한도하'], ['songdoha3', '색시한도하', '색시한도하'], ['taehee', '이태희', '이태희임'], ['dohyun', '고트도현', '고트도현'], ['jsy', '정성윤석열이재명', '정성윤석열이재명']]) {
+  GRANTS.push({ id: 'title-restorer-' + k, nick, name, title: 'restorer', keep: true });
+  GRANTS.push({ id: 'cons-restorer-1120-' + k, nick, name, cons: { xp2: 1, gold2: 1 } });
+}
 GRANTS.push({ id: 'cls-admin-spirit-1117', admin: true, setCls: 'spirit' }); // 관리자 직업 → 정령술사
 GRANTS.push({ id: 'cls-admin-spirit-1118', admin: true, setCls: 'spirit' }); // (다시) 예전 화면이 받기만 하고 적용을 못 해서 한 번 더
 GRANTS.push({ id: 'gold-admin-1117', admin: true, goldAdd: 200000000 }); // 관리자 +2억 골드
@@ -141,7 +146,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc }));
+    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc, cons: g.cons }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
@@ -277,28 +282,33 @@ function attach(io, { auth, accounts, store }) {
   const ns = io.of('/rpg');
   // ===== 서버 이벤트: 매일 23시 평화의 마을에 거대 슬라임 =====
   // 1마리 → 2 → 4 → 8 → 16 → 32 → 64 마리로 분열. 기여도(준 피해)에 따라 80만 골드 · 슬라임 점액 1만 개 · 레벨 9 만큼의 경험치를 나눈다.
-  const EVT = { on: false, stage: 0, t: 0, stageT: 0, contrib: new Map(), names: new Map(), day: '', warned: '' };
+  // 서버(채널)마다 따로 진행 — 다른 채널과는 아무것도 공유하지 않는다
+  const EVTS = new Map(); const EVTW = { warned: '' };
+  const evtOf = (ch) => { let E = EVTS.get(ch); if (!E) { E = { on: false, stage: 0, t: 0, stageT: 0, contrib: new Map(), names: new Map(), day: '', startedAt: '' }; EVTS.set(ch, E); } return E; };
+  const chEmit = (ch, ev, d) => { for (const s of byUid.values()) if (s.data.ch === ch) s.emit(ev, d); };
   const kstNow = () => new Date(Date.now() + 9 * 3600e3);
-  const evtStart = () => { const d = kstNow(); Object.assign(EVT, { on: true, stage: 0, t: Date.now(), stageT: Date.now(), contrib: new Map(), names: new Map(), day: d.toISOString().slice(0, 10) }); ns.emit('evt', { on: 1, stage: 0, intro: 1 }); ns.emit('tr:msg', '🟢 서버 이벤트! 평화의 마을에 거대 슬라임이 나타났어요! (밤 11시 · 11시 15분)'); };
-  const evtEnd = (full) => {
-    if (!EVT.on) return; EVT.on = false; const f = full ? 1 : Math.min(1, EVT.stage / 7);
-    const list = [...EVT.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1;
-    ns.emit('evt', { on: 0, end: 1, full: full ? 1 : 0 });
+  const evtStart = (ch) => { const E = evtOf(ch), d = kstNow(); Object.assign(E, { on: true, stage: 0, t: Date.now(), stageT: Date.now(), contrib: new Map(), names: new Map(), day: d.toISOString().slice(0, 10) }); chEmit(ch, 'evt', { on: 1, stage: 0, intro: 1 }); chEmit(ch, 'tr:msg', '🟢 서버 이벤트! 평화의 마을에 거대 슬라임이 나타났어요! (밤 11시 · 11시 15분)'); };
+  const evtEnd = (ch, full) => {
+    const E = evtOf(ch); if (!E.on) return; E.on = false; const f = full ? 1 : Math.min(1, E.stage / 7);
+    const list = [...E.contrib.entries()].sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1;
+    chEmit(ch, 'evt', { on: 0, end: 1, full: full ? 1 : 0 });
     list.forEach(([u, c], i) => { const q = byUid.get(u); if (!q) return; const sh = c / total; q.emit('evt:reward', { gold: Math.round(800000 * sh * f), gel: Math.round(10000 * sh * f), lv: Math.round(9 * sh * f * 100) / 100, pct: Math.round(sh * 1000) / 10, rank: i + 1, n: list.length, full: full ? 1 : 0 }); });
   };
-  const evtRank = () => { const list = [...EVT.contrib.entries()].filter(([u]) => u !== ADMIN_ID).sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1; return list.slice(0, 40).map(([u, c]) => [u, EVT.names.get(u) || '?', Math.round(c / total * 1000) / 10]); };
-  const EVT_MS = 12 * 60e3; // 한 판은 최대 12분 (못 잡으면 잡은 만큼 보상하고 종료 → 11시 15분 판 전에 끝남)
+  const evtRank = (E) => { const list = [...E.contrib.entries()].filter(([u]) => u !== ADMIN_ID).sort((a, b) => b[1] - a[1]); const total = list.reduce((a, x) => a + x[1], 0) || 1; return list.slice(0, 40).map(([u, c]) => [u, E.names.get(u) || '?', Math.round(c / total * 1000) / 10]); };
+  const EVT_MS = 12 * 60e3; // 한 판은 최대 12분
   setInterval(() => {
     const d = kstNow(), h = d.getUTCHours(), m = d.getUTCMinutes(), day = d.toISOString().slice(0, 10);
-    // 하루 두 번: 밤 11시(23:00), 밤 11시 15분(23:15)
-    if (h === 22 && m === 59 && EVT.warned !== day + ':a') { EVT.warned = day + ':a'; ns.emit('tr:msg', '⏰ 곧 밤 11시! 평화의 마을에 거대 슬라임이 나타나요 (서버 이벤트)'); }
-    else if (h === 23 && m === 14 && EVT.warned !== day + ':b') { EVT.warned = day + ':b'; ns.emit('tr:msg', '⏰ 곧 11시 15분! 거대 슬라임이 한 번 더 나타나요'); }
+    if (h === 22 && m === 59 && EVTW.warned !== day + ':a') { EVTW.warned = day + ':a'; ns.emit('tr:msg', '⏰ 곧 밤 11시! 평화의 마을에 거대 슬라임이 나타나요 (서버 이벤트)'); }
+    else if (h === 23 && m === 14 && EVTW.warned !== day + ':b') { EVTW.warned = day + ':b'; ns.emit('tr:msg', '⏰ 곧 11시 15분! 거대 슬라임이 한 번 더 나타나요'); }
     let slot = null;
     if (h === 23 && m === 0) slot = day + ':a';
     else if (h === 23 && m === 15) slot = day + ':b';
-    if (slot && !EVT.on && EVT.startedAt !== slot) { EVT.startedAt = slot; evtStart(); }
-    if (EVT.on && Date.now() - EVT.t > EVT_MS) evtEnd(false);
-    if (EVT.on) ns.emit('evt:rank', { stage: EVT.stage, list: evtRank() });
+    for (let ch = 1; ch <= CH_N; ch++) {
+      const E = evtOf(ch);
+      if (slot && !E.on && E.startedAt !== slot) { E.startedAt = slot; evtStart(ch); }
+      if (E.on && Date.now() - E.t > EVT_MS) evtEnd(ch, false);
+      if (E.on) chEmit(ch, 'evt:rank', { stage: E.stage, list: evtRank(E) });
+    }
   }, 2000).unref?.();
   // 달콩빔 하루 사용 횟수 (한국 시간 기준 날짜마다 10번)
   const dkCount = new Map(); const kstDay = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
@@ -319,7 +329,7 @@ function attach(io, { auth, accounts, store }) {
   // 같이 사냥: 맵마다 '방장' 한 명이 몬스터를 움직이고, 나머지는 방장이 보내주는 몬스터 상태를 보며 때린 내용을 방장에게 보낸다.
   const hosts = new Map(); // 방(채널|맵) -> uid
   // ===== 채널(서버 #1~#15): 채널마다 최대 12명, 같은 채널 사람끼리만 같은 맵에서 보인다 =====
-  const CH_N = 15, CH_MAX = 12;
+  const CH_N = 15, CH_MAX = 12, CH1_PW = process.env.RPG_CH1_PW || '잠신중';
   const baseOf = (r) => String(r || '').slice(String(r || '').indexOf('|') + 1);
   const roomOf = (ch, map) => ch + '|' + map; // 결투장·광산도 채널마다 따로
   const chCount = () => { const c = new Array(CH_N + 1).fill(0); for (const s of byUid.values()) if (s.data.ch) c[s.data.ch]++; return c; };
@@ -352,18 +362,21 @@ function attach(io, { auth, accounts, store }) {
     if (old && old !== socket) { old.emit('kicked'); old.disconnect(true); } // 같은 계정은 한 곳에서만
     byUid.set(uid, socket);
     socket.data.p = null; socket.data.map = ''; socket.data.room = '';
-    { const c = chCount(); let ch = 0; for (let i = 1; i <= CH_N; i++) if (c[i] < CH_MAX) { ch = i; break; }
+    { const c = chCount(); let ch = 0; for (let i = 2; i <= CH_N; i++) if (c[i] < CH_MAX) { ch = i; break; } // 1번 서버는 비밀번호가 있어야 들어간다
       if (!ch) { socket.emit('full'); setTimeout(() => socket.disconnect(true), 300); return; }
       socket.data.ch = ch; socket.emit('ch', { ch, n: CH_N, max: CH_MAX }); }
     // 채널 목록 · 채널 옮기기
-    socket.on('ch:list', () => { const c = chCount(); socket.emit('ch:list', { cur: socket.data.ch, c: c.slice(1), max: CH_MAX }); });
-    socket.on('ch:set', (n) => {
+    socket.on('ch:list', () => { const c = chCount(); socket.emit('ch:list', { cur: socket.data.ch, c: c.slice(1), max: CH_MAX, lock: [1] }); });
+    socket.on('ch:set', (n, pw) => {
+      if (n && typeof n === 'object') { pw = n.pw; n = n.ch; }
       n = Math.floor(+n); if (!(n >= 1 && n <= CH_N) || n === socket.data.ch) return;
+      if (n === 1 && String(pw || '') !== CH1_PW) return socket.emit('tr:msg', '🔒 1번 서버 비밀번호가 틀렸어요');
       if (chCount()[n] >= CH_MAX) return socket.emit('tr:msg', '그 채널은 꽉 찼어요 (' + CH_MAX + '명)');
       const oldRoom = socket.data.room; if (socket.data.endTrades) socket.data.endTrades('상대가 다른 채널로 옮겼어요');
       if (oldRoom) { socket.leave('m:' + oldRoom); socket.to('m:' + oldRoom).emit('vc', { t: 'bye', from: uid }); }
       for (const q of byUid.values()) if (q.data.ride === uid) { q.data.ride = null; q.emit('ride:off', { why: '운전자가 다른 채널로 옮겨서 내렸어요' }); }
       if (socket.data.ride) { const dr = byUid.get(socket.data.ride); if (dr) dr.emit('tr:msg', ((socket.data.p && socket.data.p[1]) || '누군가') + ' 님이 내렸어요'); }
+      if (partyOf(uid)) { ptLeave(uid); socket.emit('tr:msg', '다른 서버로 옮겨서 파티에서 나왔어요'); }
       socket.data.ch = n; socket.data.room = ''; socket.data.map = ''; socket.data.ride = null; if (oldRoom) pickHost(oldRoom);
       socket.emit('ch', { ch: n, n: CH_N, max: CH_MAX, moved: 1 });
     });
@@ -408,7 +421,7 @@ function attach(io, { auth, accounts, store }) {
     // 파티
     socket.on('pt:inv', (d) => {
       const t = byUid.get(String((d && d.to) || ''));
-      if (!t || t === socket) return socket.emit('tr:msg', '상대가 접속해 있지 않아요');
+      if (!t || t === socket || t.data.ch !== socket.data.ch) return socket.emit('tr:msg', '상대가 같은 서버에 없어요');
       const mine = partyOf(uid); if (mine && parties.get(mine).m.length >= 4) return socket.emit('tr:msg', '파티는 4명까지예요');
       if (partyOf(t.data.uid)) return socket.emit('tr:msg', '상대는 이미 다른 파티에 있어요');
       const now = Date.now(); if (now - (socket.data.pinv || 0) < 2000) return; socket.data.pinv = now;
@@ -430,7 +443,7 @@ function attach(io, { auth, accounts, store }) {
     // 파티 참가 요청: 상대 파티의 파티장(파티가 없으면 상대 본인)에게 묻는다
     socket.on('pt:req', (d) => {
       const t = byUid.get(String((d && d.to) || ''));
-      if (!t || t === socket) return socket.emit('tr:msg', '상대가 접속해 있지 않아요');
+      if (!t || t === socket || t.data.ch !== socket.data.ch) return socket.emit('tr:msg', '상대가 같은 서버에 없어요');
       if (partyOf(uid)) return socket.emit('tr:msg', '이미 파티에 있어요. 먼저 파티를 나가 주세요');
       const now = Date.now(); if (now - (socket.data.preq || 0) < 3000) return socket.emit('tr:msg', '잠시 후 다시 요청해 주세요'); socket.data.preq = now;
       const pid = partyOf(t.data.uid); const T = pid && parties.get(pid);
@@ -576,7 +589,7 @@ function attach(io, { auth, accounts, store }) {
     socket.on('who', (cb) => {
       const now = Date.now(); if (typeof cb !== 'function' || now - (socket.data.wt || 0) < 700) return; socket.data.wt = now;
       const list = [];
-      for (const s of byUid.values()) { const q = s.data.p; if (q && s.data.map && list.length < 80) { const pid = partyOf(s.data.uid); list.push([q[0], q[1], q[5], s.data.map, q[6], q[7], pid ? parties.get(pid).m.length : 0]); } }
+      for (const s of byUid.values()) { const q = s.data.p; if (q && s.data.map && s.data.ch === socket.data.ch && list.length < 80) { const pid = partyOf(s.data.uid); list.push([q[0], q[1], q[5], s.data.map, q[6], q[7], pid ? parties.get(pid).m.length : 0]); } }
       cb(list);
     });
     // 채팅: 같은 맵 사람들 머리 위에 뜬다 (0.8초에 한 번)
@@ -634,15 +647,16 @@ function attach(io, { auth, accounts, store }) {
       t.data.ride = null; t.emit('jailed', { by: (socket.data.p && socket.data.p[1]) || '경찰', s: 30 });
       socket.emit('tr:msg', ((t.data.p && t.data.p[1]) || '상대') + ' 님을 감옥에 가뒀어요 (30초)');
     });
-    if (EVT.on) socket.emit('evt', { on: 1, stage: EVT.stage });
+    { const E = evtOf(socket.data.ch); if (E.on) socket.emit('evt', { on: 1, stage: E.stage }); }
     socket.on('evt:dmg', (v) => { // 이벤트 슬라임에게 준 피해 (기여도)
-      if (!EVT.on || socket.data.map !== 'village') return; const now = Date.now(); if (now - (socket.data.evdT || 0) < 700) return; socket.data.evdT = now;
-      const n = Math.max(0, Math.min(2e7, Number(v) || 0)); if (!n) return; EVT.contrib.set(uid, (EVT.contrib.get(uid) || 0) + n); EVT.names.set(uid, (socket.data.p && socket.data.p[1]) || socket.data.nick || '?');
+      const E = evtOf(socket.data.ch); if (!E.on || socket.data.map !== 'village') return; const now = Date.now(); if (now - (socket.data.evdT || 0) < 700) return; socket.data.evdT = now;
+      const n = Math.max(0, Math.min(2e7, Number(v) || 0)); if (!n) return; E.contrib.set(uid, (E.contrib.get(uid) || 0) + n); E.names.set(uid, (socket.data.p && socket.data.p[1]) || socket.data.nick || '?');
     });
     socket.on('evt:clear', (d) => { // 방장이 '이번 단계 슬라임을 다 잡았다'고 알린다
-      if (!EVT.on || socket.data.map !== 'village' || !d || +d.stage !== EVT.stage || Date.now() - EVT.stageT < 4000) return;
-      EVT.stage++; EVT.stageT = Date.now(); if (EVT.stage > 6) return evtEnd(true);
-      ns.emit('evt', { on: 1, stage: EVT.stage, split: 1 });
+      const E = evtOf(socket.data.ch), ch = socket.data.ch;
+      if (!E.on || socket.data.map !== 'village' || !d || +d.stage !== E.stage || Date.now() - E.stageT < 4000) return;
+      E.stage++; E.stageT = Date.now(); if (E.stage > 6) return evtEnd(ch, true);
+      chEmit(ch, 'evt', { on: 1, stage: E.stage, split: 1 });
     });
     socket.on('rock:sync', () => { const now = Date.now(), pre = socket.data.ch + ':'; const l = []; for (const [k, t] of ROCKS) { if (t <= now) ROCKS.delete(k); else if (k.startsWith(pre)) l.push([+k.slice(pre.length), t - now]); } socket.emit('rocks', l); });
     socket.on('rock:hit', (d) => {
@@ -660,7 +674,7 @@ function attach(io, { auth, accounts, store }) {
       tgt.emit('admin:spawn', { t: 'dragon', m: baseOf(m), x: Math.round(num(d.x, 0, 200000)), y: Math.round(num(d.y, 0, 200000)) });
       ns.to('m:' + m).emit('tr:msg', '🐉 관리자가 화염 드래곤을 소환했다!!');
     });
-    socket.on('evt:admin', (d) => { if (uid !== ADMIN_ID) return; if (d === 'start' && !EVT.on) evtStart(); if (d === 'stop') evtEnd(false); }); // 관리자 테스트용
+    socket.on('evt:admin', (d) => { if (uid !== ADMIN_ID) return; const ch = socket.data.ch; if (d === 'start' && !evtOf(ch).on) evtStart(ch); if (d === 'stop') evtEnd(ch, false); }); // 관리자 테스트용
     socket.on('ann', (t) => {
       if (uid !== ADMIN_ID) return;
       const now = Date.now(); if (now - (socket.data.annT || 0) < 3000) return; socket.data.annT = now;
@@ -713,7 +727,7 @@ function attach(io, { auth, accounts, store }) {
   });
   let tick = 0; const psSig = new Map();
   const timer = setInterval(() => {
-    if (++tick % 20 === 0) ns.volatile.emit('n', byUid.size); // 2초마다 전체 접속자 수
+    if (++tick % 20 === 0) { const c = chCount(); for (const s of byUid.values()) s.volatile.emit('n', c[s.data.ch] || 0); } // 2초마다 같은 서버 접속자 수
     if (tick % 5 === 0) for (const T of parties.values()) { // 0.5초마다 파티원 위치·체력
       const info = T.m.map((u) => { const q = byUid.get(u), p = q && q.data.p; return p ? [u, p[1], p[5], q.data.map, p[6], p[7], p[14], q.data.ch || 0] : [u, '?', 0, '', 0, 0, 0, 0]; });
       for (const u of T.m) { const q = byUid.get(u); if (q) q.volatile.emit('pt:st', info); }
