@@ -240,6 +240,20 @@ function http(app, { store, auth, accounts }) {
   // 플레이스토어용: 개인정보처리방침 · 계정 삭제 페이지
   app.get('/rpg/privacy', (_req, res) => { res.type('html').send(PRIVACY_HTML.replace(/{{CONTACT}}/g, CONTACT)); });
   app.get('/rpg/delete', (_req, res) => { res.type('html').send(DELETE_HTML.replace(/{{CONTACT}}/g, CONTACT)); });
+  // 앱 설치용 파일(매니페스트·서비스 워커·아이콘)은 같은 주소에서 직접 내려준다 (서비스 워커는 다른 주소로 넘기면 안 된다)
+  const APPF = { 'manifest.webmanifest': 'application/manifest+json', 'sw.js': 'application/javascript', 'icon-192.png': 'image/png', 'icon-512.png': 'image/png' }; const appCache = new Map();
+  app.get('/rpg/:file', async (req, res, next) => {
+    const f = req.params.file, type = APPF[f]; if (!type) return next();
+    let c = appCache.get(f);
+    if (!c || Date.now() - c.t > 300000) { try { const r = await fetch(PAGES + f); if (r.ok) { c = { b: Buffer.from(await r.arrayBuffer()), t: Date.now() }; appCache.set(f, c); } } catch (e) { console.error('[rpg] 앱 파일 실패', f, e.message); } }
+    if (!c) return res.status(502).end();
+    res.setHeader('Cache-Control', f === 'sw.js' ? 'no-cache' : 'public, max-age=3600'); res.type(type).send(c.b);
+  });
+  // 플레이스토어 앱(TWA)이 이 사이트의 주인임을 확인하는 파일. Render 환경변수 RPG_APP_SHA256 에 서명 지문을 넣는다
+  app.get('/.well-known/assetlinks.json', (_req, res) => {
+    const fp = String(process.env.RPG_APP_SHA256 || '').split(',').map((x) => x.trim()).filter(Boolean);
+    res.json(fp.length ? [{ relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: process.env.RPG_APP_PKG || 'com.dobakrpg.app', sha256_cert_fingerprints: fp } }] : []);
+  });
   app.get('/rpg/:file', (req, res) => {
     if (!/^[\w.\-]{1,60}$/.test(req.params.file)) return res.status(404).end();
     res.redirect(PAGES + req.params.file);
