@@ -240,6 +240,8 @@ function http(app, { store, auth, accounts }) {
     return page.html;
   };
   app.get('/rpg', async (req, res) => {
+    // 게임 화면은 GitHub Pages에서 바로 받는다 (Render 전송량 절약). RPG_SERVE_HERE=1 이면 예전처럼 여기서 내려준다
+    if (!process.env.RPG_SERVE_HERE) { const q = req.originalUrl.indexOf('?'); return res.redirect(302, PAGES + (q >= 0 ? req.originalUrl.slice(q) : '')); }
     if (!req.originalUrl.split('?')[0].endsWith('/')) return res.redirect('/rpg/'); // 끝에 / 가 있어야 음악 등 상대 경로가 맞는다
     const html = await loadPage();
     if (!html) return res.status(502).type('text/plain; charset=utf-8').send('도박 RPG 화면을 불러오지 못했어요. 잠시 후 새로고침해 주세요.');
