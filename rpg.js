@@ -37,6 +37,7 @@ GRANTS.push({ id: 'dalkong-choi-1117', nick: '최범규 vr2', name: '최범규 v
 const DK_NAMES = new Set(['최범규 vr2']); // 달콩빔을 하루 10번 쓸 수 있는 사람 (계정 닉네임 또는 캐릭터 이름)
 GRANTS.push({ id: 'penalty-daege-1118', nick: '대게', name: '대게', lvAdd: -10, spDown: 10, apDown: 30, goldMul: 0.5 }); // 「대게」: 레벨 -10 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
 GRANTS.push({ id: 'lv91-songdoha-1120', nick: '섹시한 송도하', name: '섹시한 송도하', setLv: 91 }); // 「섹시한 송도하」 레벨 91 (다른 건 그대로)
+GRANTS.push({ id: 'admin-mats-1121', admin: true, mats: { aheart: 10, aspear: 10, dheart: 10 } }); // 관리자: 아누비스의 심장·아누비스의 창·드래곤 하트 10개씩
 // 서버 복구 기념 (11/20): 칭호 「서버복구자」 + 경험치 2배권(1분) · 골드 2배권(1분) — 계정 닉네임이나 캐릭터 이름이 같으면 받는다
 for (const [k, nick, name] of [['songdoha', '섹시한 송도하', '섹시한 송도하'], ['songdoha2', '섹시한도하', '섹시한도하'], ['songdoha3', '색시한도하', '색시한도하'], ['taehee', '이태희', '이태희임'], ['dohyun', '고트도현', '고트도현'], ['jsy', '정성윤석열이재명', '정성윤석열이재명']]) {
   GRANTS.push({ id: 'title-restorer-' + k, nick, name, title: 'restorer', keep: true });
@@ -146,7 +147,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc, cons: g.cons }));
+    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc, cons: g.cons, mats: g.mats }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
