@@ -24,6 +24,7 @@ const { Market } = require(modPath('market'));
 const { Stocks, SLOT_MS } = require(modPath('stocks'));
 const chatNet = require(modPath('chat'));
 const rpg = require(modPath('rpg')); // 도박 RPG 연동 (세이브 저장 + 실시간 접속)
+const horror = require(modPath('horror')); // 공포게임 「종이 울리면」 연동 (세이브 저장만)
 const flashNet = require(modPath('flash'));
 const presenceNet = require(modPath('presence'));
 const C = require(modPath('catalog'));
@@ -65,6 +66,7 @@ const A = api.create({ accounts, auth, market, onMarket, stocks, onStock, onNick
 let game = { stats: () => ({}), stop() {} };
 let bounce = { stop() {} };
 rpg.http(app, { store, auth, accounts });
+horror.http(app, { store, auth, accounts });
 app.get('/healthz', (_req, res) => res.json({ ok: true, db: store.kind, ...game.stats(), uptime: Math.round(process.uptime()) }));
 app.get('/api/catalog', (_req, res) => { res.set('Cache-Control', 'public, max-age=300'); res.json(api.catalogPayload()); });
 app.get('/api/config', A.config);

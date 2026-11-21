@@ -166,7 +166,7 @@ function http(app, { store, auth, accounts }) {
   }));
 
   // 본인 계정 삭제 (게임 안: 로그인된 상태 + 비밀번호 / 웹: 아이디 + 비밀번호)
-  const wipe = async (id) => { try { await store.remove(docId(id)); } catch (e) { console.error('[rpg] 저장 삭제 실패', e.message); } };
+  const wipe = async (id) => { try { await store.remove(docId(id)); await store.remove('__hor:' + id); } catch (e) { console.error('[rpg] 저장 삭제 실패', e.message); } }; // 공포게임 저장도 같이 지운다
   app.post('/api/rpg/deleteme', wrap(async (req, uid) => {
     const r = await accounts.selfDelete(uid, req.body && req.body.pw, true);
     if (r.error) return { status: 400, body: r };
