@@ -131,6 +131,7 @@ const io = new Server(server, {
   presence = presenceNet.attach(io, { accounts });
   bounce = bounceNet.attach(io, { accounts });
   rpg.attach(io, { auth, accounts, store });
+  horror.attach(io, { auth, accounts }); // 공포게임 멀티플레이
   server.listen(PORT, () => console.log(`RANDOM FOOTBALL listening on :${PORT} (db=${store.kind})`));
 })().catch((e) => { console.error('시작 실패', e); process.exit(1); });
 

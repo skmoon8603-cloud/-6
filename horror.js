@@ -64,4 +64,58 @@ function http(app, { store, auth, accounts }) {
   }));
 }
 
-module.exports = { http, docId };
+/**
+ * 멀티플레이: Socket.IO 네임스페이스 '/horror'
+ *  - 방(4자리 코드)마다 최대 6명. 처음 들어온 사람이 '방장(host)' — 괴물·종소리를 계산해서 다른 사람에게 보낸다.
+ *  - 서버는 계산하지 않고 같은 방 사람들에게 전달만 한다 (가볍게).
+ */
+const PROF = require('./profanity');
+const cleanChat = (t) => PROF.clean(String(t == null ? '' : t).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 50));
+const MAX = 6;
+function attach(io, { auth, accounts }) {
+  const ns = io.of('/horror');
+  const rooms = new Map(); // code -> { host: socketId, members: Set<socketId> }
+  const roster = (code) => { const r = rooms.get(code); if (!r) return; const list = [...r.members].map((id) => { const s = ns.sockets.get(id); return s ? { id, nick: s.data.nick, host: id === r.host ? 1 : 0 } : null; }).filter(Boolean); ns.to(code).emit('roster', list); };
+  const leave = (socket) => {
+    const code = socket.data.room; if (!code) return; socket.leave(code); socket.data.room = '';
+    const r = rooms.get(code); if (!r) return; r.members.delete(socket.id);
+    if (!r.members.size) { rooms.delete(code); return; }
+    if (r.host === socket.id) { r.host = [...r.members][0]; const h = ns.sockets.get(r.host); if (h) h.emit('host', 1); }
+    ns.to(code).emit('gone', socket.id); roster(code);
+  };
+  ns.use(async (socket, next) => {
+    try {
+      const tok = socket.handshake.auth && socket.handshake.auth.token;
+      const s = tok ? auth.verifySession(tok) : null;
+      const a = s ? await accounts.get(s.uid) : null;
+      socket.data.nick = a ? String(a.nick || '플레이어').slice(0, 12) : '게스트' + Math.floor(1000 + Math.random() * 9000);
+      socket.data.room = ''; socket.data.n = 0; socket.data.t = 0;
+      next();
+    } catch (e) { next(new Error('server_error')); }
+  });
+  ns.on('connection', (socket) => {
+    const rate = () => { const now = Date.now(); if (now - socket.data.t > 1000) { socket.data.t = now; socket.data.n = 0; } return ++socket.data.n > 60; };
+    socket.on('rooms', () => { socket.emit('rooms', [...rooms.entries()].map(([code, r]) => ({ code, n: r.members.size })).filter((r) => r.n < MAX).slice(0, 20)); });
+    socket.on('join', (code) => {
+      code = String(code || '').replace(/\D/g, '').slice(0, 4);
+      if (code.length !== 4) return socket.emit('joinErr', 'bad');
+      leave(socket);
+      let r = rooms.get(code); if (!r) { r = { host: socket.id, members: new Set() }; rooms.set(code, r); }
+      if (r.members.size >= MAX) return socket.emit('joinErr', 'full');
+      r.members.add(socket.id); socket.join(code); socket.data.room = code;
+      socket.emit('joined', { code, me: socket.id, nick: socket.data.nick, host: r.host === socket.id ? 1 : 0 });
+      roster(code);
+    });
+    socket.on('leave', () => leave(socket));
+    // 내 위치·상태 → 같은 방 사람들에게 (자주 오므로 volatile)
+    socket.on('st', (d) => { if (!socket.data.room || rate() || !d || typeof d !== 'object') return; socket.volatile.to(socket.data.room).emit('pst', { id: socket.id, ...d }); });
+    // 방장이 보내는 괴물·종소리 상태
+    socket.on('mon', (d) => { const r = rooms.get(socket.data.room); if (!r || r.host !== socket.id || rate()) return; socket.volatile.to(socket.data.room).emit('mon', d); });
+    // 일회성 사건 (소리, 접기, 방송, 층 이동, 죽음 등)
+    socket.on('ev', (d) => { if (!socket.data.room || rate() || !d || typeof d !== 'object') return; socket.to(socket.data.room).emit('ev', { from: socket.id, ...d }); });
+    socket.on('chat', (t) => { if (!socket.data.room || rate()) return; const m = cleanChat(t); if (m) ns.to(socket.data.room).emit('chat', { id: socket.id, nick: socket.data.nick, t: m }); });
+    socket.on('disconnect', () => leave(socket));
+  });
+}
+
+module.exports = { http, attach, docId };
