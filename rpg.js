@@ -37,6 +37,7 @@ GRANTS.push({ id: 'dalkong-choi-1117', nick: '최범규 vr2', name: '최범규 v
 const DK_NAMES = new Set(['최범규 vr2']); // 달콩빔을 하루 10번 쓸 수 있는 사람 (계정 닉네임 또는 캐릭터 이름)
 GRANTS.push({ id: 'penalty-daege-1118', nick: '대게', name: '대게', lvAdd: -10, spDown: 10, apDown: 30, goldMul: 0.5 }); // 「대게」: 레벨 -10 (그만큼 받은 스킬 1·능력치 3 포인트도 회수), 골드 절반
 GRANTS.push({ id: 'lv91-songdoha-1120', nick: '섹시한 송도하', name: '섹시한 송도하', setLv: 91 }); // 「섹시한 송도하」 레벨 91 (다른 건 그대로)
+GRANTS.push({ id: 'gold-wjh-main-1121', name: '왕정훈 본계', goldAdd: 3000000 }); // 「왕정훈 본계」 +300만 골드
 GRANTS.push({ id: 'admin-mats-1121', admin: true, mats: { aheart: 10, aspear: 10, dheart: 10 } }); // 관리자: 아누비스의 심장·아누비스의 창·드래곤 하트 10개씩
 // 서버 복구 기념 (11/20): 칭호 「서버복구자」 + 경험치 2배권(1분) · 골드 2배권(1분) — 계정 닉네임이나 캐릭터 이름이 같으면 받는다
 for (const [k, nick, name] of [['songdoha', '섹시한 송도하', '섹시한 송도하'], ['songdoha2', '섹시한도하', '섹시한도하'], ['songdoha3', '색시한도하', '색시한도하'], ['taehee', '이태희', '이태희임'], ['dohyun', '고트도현', '고트도현'], ['jsy', '정성윤석열이재명', '정성윤석열이재명']]) {
