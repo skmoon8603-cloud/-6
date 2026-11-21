@@ -365,7 +365,7 @@ function attach(io, { auth, accounts, store }) {
     socket.data.p = null; socket.data.map = ''; socket.data.room = '';
     { const c = chCount(); let ch = 0; for (let i = 2; i <= CH_N; i++) if (c[i] < CH_MAX) { ch = i; break; } // 1번 서버는 비밀번호가 있어야 들어간다
       if (!ch) { socket.emit('full'); setTimeout(() => socket.disconnect(true), 300); return; }
-      socket.data.ch = ch; socket.emit('ch', { ch, n: CH_N, max: CH_MAX }); }
+      socket.data.ch = ch; socket.emit('ch', { ch, n: CH_N, max: CH_MAX }); socket.emit('n', chCount()[ch]); }
     // 채널 목록 · 채널 옮기기
     socket.on('ch:list', () => { const c = chCount(); socket.emit('ch:list', { cur: socket.data.ch, c: c.slice(1), max: CH_MAX, lock: [1] }); });
     socket.on('ch:set', (n, pw) => {
@@ -379,7 +379,7 @@ function attach(io, { auth, accounts, store }) {
       if (socket.data.ride) { const dr = byUid.get(socket.data.ride); if (dr) dr.emit('tr:msg', ((socket.data.p && socket.data.p[1]) || '누군가') + ' 님이 내렸어요'); }
       if (partyOf(uid)) { ptLeave(uid); socket.emit('tr:msg', '다른 서버로 옮겨서 파티에서 나왔어요'); }
       socket.data.ch = n; socket.data.room = ''; socket.data.map = ''; socket.data.ride = null; if (oldRoom) pickHost(oldRoom);
-      socket.emit('ch', { ch: n, n: CH_N, max: CH_MAX, moved: 1 });
+      socket.emit('ch', { ch: n, n: CH_N, max: CH_MAX, moved: 1 }); socket.emit('n', chCount()[n]);
     });
     socket.on('s', (d) => {
       if (!d || typeof d !== 'object') return;
