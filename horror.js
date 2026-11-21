@@ -74,14 +74,14 @@ const cleanChat = (t) => PROF.clean(String(t == null ? '' : t).replace(/[\u0000-
 const MAX = 6;
 function attach(io, { auth, accounts }) {
   const ns = io.of('/horror');
-  const rooms = new Map(); // code -> { host: socketId, members: Set<socketId> }
-  const roster = (code) => { const r = rooms.get(code); if (!r) return; const list = [...r.members].map((id) => { const s = ns.sockets.get(id); return s ? { id, nick: s.data.nick, host: id === r.host ? 1 : 0 } : null; }).filter(Boolean); ns.to(code).emit('roster', list); };
+  const rooms = new Map(); // code -> { host: socketId, members: Set<socketId>, slot: Map<socketId, 1~6> }
+  const roster = (code) => { const r = rooms.get(code); if (!r) return; const list = [...r.members].map((id) => { const s = ns.sockets.get(id); return s ? { id, s: r.slot.get(id), nick: s.data.nick, host: id === r.host ? 1 : 0 } : null; }).filter(Boolean); ns.to(code).emit('roster', list); };
   const leave = (socket) => {
     const code = socket.data.room; if (!code) return; socket.leave(code); socket.data.room = '';
-    const r = rooms.get(code); if (!r) return; r.members.delete(socket.id);
+    const r = rooms.get(code); if (!r) return; const sl = r.slot.get(socket.id); r.members.delete(socket.id); r.slot.delete(socket.id);
     if (!r.members.size) { rooms.delete(code); return; }
     if (r.host === socket.id) { r.host = [...r.members][0]; const h = ns.sockets.get(r.host); if (h) h.emit('host', 1); }
-    ns.to(code).emit('gone', socket.id); roster(code);
+    ns.to(code).emit('gone', sl); roster(code);
   };
   ns.use(async (socket, next) => {
     try {
@@ -100,20 +100,23 @@ function attach(io, { auth, accounts }) {
       code = String(code || '').replace(/\D/g, '').slice(0, 4);
       if (code.length !== 4) return socket.emit('joinErr', 'bad');
       leave(socket);
-      let r = rooms.get(code); if (!r) { r = { host: socket.id, members: new Set() }; rooms.set(code, r); }
+      let r = rooms.get(code); if (!r) { r = { host: socket.id, members: new Set(), slot: new Map() }; rooms.set(code, r); }
       if (r.members.size >= MAX) return socket.emit('joinErr', 'full');
-      r.members.add(socket.id); socket.join(code); socket.data.room = code;
-      socket.emit('joined', { code, me: socket.id, nick: socket.data.nick, host: r.host === socket.id ? 1 : 0 });
+      let sl = 1; const used = new Set(r.slot.values()); while (used.has(sl)) sl++;
+      r.members.add(socket.id); r.slot.set(socket.id, sl); socket.join(code); socket.data.room = code; socket.data.slot = sl;
+      socket.emit('joined', { code, me: socket.id, s: sl, nick: socket.data.nick, host: r.host === socket.id ? 1 : 0 });
       roster(code);
     });
     socket.on('leave', () => leave(socket));
     // 내 위치·상태 → 같은 방 사람들에게 (자주 오므로 volatile)
-    socket.on('st', (d) => { if (!socket.data.room || rate() || !d || typeof d !== 'object') return; socket.volatile.to(socket.data.room).emit('pst', { id: socket.id, ...d }); });
+    // 데이터를 아끼기 위해 숫자 배열로만 주고받는다: [층, x*10, y*10, 방향*100, 상태 비트, 소리*10]
+    const nums = (d, max) => Array.isArray(d) && d.length <= max && d.every((v) => typeof v === 'number' && Number.isFinite(v));
+    socket.on('s', (d) => { if (!socket.data.room || rate() || !nums(d, 8)) return; socket.volatile.to(socket.data.room).emit('p', [socket.data.slot, ...d]); });
     // 방장이 보내는 괴물·종소리 상태
-    socket.on('mon', (d) => { const r = rooms.get(socket.data.room); if (!r || r.host !== socket.id || rate()) return; socket.volatile.to(socket.data.room).emit('mon', d); });
+    socket.on('m', (d) => { const r = rooms.get(socket.data.room); if (!r || r.host !== socket.id || rate() || !nums(d, 200)) return; socket.volatile.to(socket.data.room).emit('m', d); });
     // 일회성 사건 (소리, 접기, 방송, 층 이동, 죽음 등)
-    socket.on('ev', (d) => { if (!socket.data.room || rate() || !d || typeof d !== 'object') return; socket.to(socket.data.room).emit('ev', { from: socket.id, ...d }); });
-    socket.on('chat', (t) => { if (!socket.data.room || rate()) return; const m = cleanChat(t); if (m) ns.to(socket.data.room).emit('chat', { id: socket.id, nick: socket.data.nick, t: m }); });
+    socket.on('ev', (d) => { if (!socket.data.room || rate() || !d || typeof d !== 'object') return; socket.to(socket.data.room).emit('ev', { f: socket.data.slot, ...d }); });
+    socket.on('chat', (t) => { if (!socket.data.room || rate()) return; const m = cleanChat(t); if (m) ns.to(socket.data.room).emit('chat', { s: socket.data.slot, nick: socket.data.nick, t: m }); });
     socket.on('disconnect', () => leave(socket));
   });
 }
