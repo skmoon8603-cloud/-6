@@ -335,6 +335,7 @@ function attach(io, { auth, accounts, store }) {
   TAKE.fn = (uid) => { const o = byUid.get(uid); if (!o) return 0; o.emit('takeover'); return 1; };
   const duels = new Map(); let pend = []; let lobbies = []; // 결투 신청 · 1:다수 결투 대기실
   const trades = new Map(); // 거래
+  const raidPend = new Map(); // 파티 id -> 레이드 준비 중
   const parties = new Map(); // 파티 id -> { lead, m: [uid...] }  (최대 4명)
   const partyOf = (u) => { for (const [id, T] of parties) if (T.m.includes(u)) return id; return null; };
   const ptSend = (id) => { const T = parties.get(id); if (!T) return; for (const u of T.m) { const q = byUid.get(u); if (q) q.emit('pt:upd', { id, lead: T.lead, m: T.m }); } };
@@ -481,6 +482,33 @@ function attach(io, { auth, accounts, store }) {
       T.m.push(A.from); ptSend(id);
     });
     socket.on('pt:leave', () => ptLeave(uid));
+    // ===== 주간 레이드: 파티장이 신청 → 3명 모두 같은 곳에 있는지 확인 → 각자 강함을 받아 보스 세기를 정한다 =====
+    socket.on('raid:ask', () => {
+      const pid = partyOf(uid), T = pid && parties.get(pid);
+      if (!T) return socket.emit('tr:msg', '3명 파티를 먼저 만들어 주세요');
+      if (T.lead !== uid) return socket.emit('tr:msg', '파티장만 레이드를 시작할 수 있어요');
+      if (T.m.length !== 3) return socket.emit('tr:msg', '레이드는 꼭 3명이서만 들어갈 수 있어요 (지금 ' + T.m.length + '명)');
+      const ss = T.m.map((u) => byUid.get(u));
+      if (ss.some((q) => !q || q.data.room !== socket.data.room)) return socket.emit('tr:msg', '파티원 3명이 모두 같은 곳(제단지기 근처)에 있어야 해요');
+      const R = { pid, got: new Map(), done: false };
+      raidPend.set(pid, R);
+      ss.forEach((q) => q.emit('raid:pw?'));
+      setTimeout(() => { if (raidPend.get(pid) === R && !R.done) { raidPend.delete(pid); for (const q of ss) if (q) q.emit('tr:msg', '레이드 준비가 끝나지 않았어요. 다시 시도해 주세요'); } }, 6000);
+    });
+    socket.on('raid:pw', (d) => {
+      const pid = partyOf(uid), R = pid && raidPend.get(pid), T = pid && parties.get(pid);
+      if (!R || !T || R.done || !d || typeof d !== 'object') return;
+      R.got.set(uid, { p: num(d.p, 0, 1e7), dps: num(d.dps, 1, 1e9), hp: num(d.hp, 1, 1e8), def: num(d.def, 0, 1e6), no: d.no ? 1 : 0 });
+      if (R.got.size < T.m.length) return;
+      R.done = true; raidPend.delete(pid);
+      const ss = T.m.map((u) => byUid.get(u)).filter(Boolean);
+      const list = [...R.got.values()];
+      const sumDps = list.reduce((a, c) => a + c.dps, 0), avgHp = list.reduce((a, c) => a + c.hp, 0) / list.length, avgDef = list.reduce((a, c) => a + c.def, 0) / list.length, pw = list.reduce((a, c) => a + c.p, 0);
+      // 보통은 못 이기게: 4분(광폭화 전) 동안 예상 피해의 1.3배 체력, 한 대에 체력의 35%쯤 깎는 공격력
+      const k = 'raid' + Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, 'x');
+      const go = { k, p: Math.round(pw), hp: Math.round(sumDps * 240 * 1.3), atk: Math.round(avgHp * 0.35 + avgDef * 0.6), def: Math.round(60 + pw / 400) };
+      for (const q of ss) q.emit('raid:go', go);
+    });
     // 거래
     const tOther = (T) => (T.a === uid ? T.b : T.a);
     const tEnd = (id, msg) => { const T = trades.get(id); if (!T) return; if (T.timer) clearTimeout(T.timer); trades.delete(id); for (const u of [T.a, T.b]) { const q = byUid.get(u); if (q) q.emit('tr:end', { id, msg: u === uid ? '' : msg }); } };
