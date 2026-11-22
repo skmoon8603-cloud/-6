@@ -40,6 +40,7 @@ GRANTS.push({ id: 'lv91-songdoha-1120', nick: '섹시한 송도하', name: '섹�
 GRANTS.push({ id: 'lv90-baekbf-1121', nick: '백지헌남친', name: '백지헌남친', setLv: 90 }); // 「백지헌남친」 레벨 90
 GRANTS.push({ id: 'title-nofind-baekbf', nick: '백지헌남친', name: '백지헌남친', title: 'nofind', keep: true }); // 칭호 「계정을 못 찾은 자」
 GRANTS.push({ id: 'dweapon-baekbf-1122', nick: '백지헌남친', name: '백지헌남친', item: 'w_{cls}5' }); // 백지헌남친: 내 직업 드래곤 무기
+GRANTS.push({ id: 'lv122-parkjm-1122', nick: '박종모', name: '박종모', setLv: 122 }); // 「박종모」 레벨 122
 GRANTS.push({ id: 'gold-wjh-main-1121', name: '왕정훈 본계', goldAdd: 3000000 }); // 「왕정훈 본계」 +300만 골드
 GRANTS.push({ id: 'admin-mats-1121', admin: true, mats: { aheart: 10, aspear: 10, dheart: 10 } }); // 관리자: 아누비스의 심장·아누비스의 창·드래곤 하트 10개씩
 // 서버 복구 기념 (11/20): 칭호 「서버복구자」 + 경험치 2배권(1분) · 골드 2배권(1분) — 계정 닉네임이나 캐릭터 이름이 같으면 받는다
