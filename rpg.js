@@ -117,6 +117,7 @@ async function linkByNick(store, nick) {
 }
 
 /** REST + 화면 제공 */
+const TAKE = { fn: null }; // 다른 기기에 '저장하고 멈춰' 보내기 (attach 에서 채움)
 function http(app, { store, auth, accounts }) {
   // 다른 주소(GitHub Pages)에서 열어도 로그인·저장이 되도록 허용 (쿠키가 아닌 토큰 방식이라 안전)
   const cors = (req, res, next) => {
@@ -206,6 +207,12 @@ function http(app, { store, auth, accounts }) {
     const r = await accounts.adminSetPw('u-' + user, pw);
     if (r.error) return { status: 400, body: r };
     return { body: { ok: true } };
+  }));
+
+  // 이어하기 직전: 같은 계정으로 켜져 있는 다른 기기에 지금까지 저장하고 멈추라고 알린다
+  app.post('/api/rpg/takeover', wrap(async (_req, uid) => {
+    if (!(await accounts.get(uid))) return { status: 401, body: { error: 'unauthorized' } };
+    return { body: { ok: true, n: TAKE.fn ? TAKE.fn(uid) : 0 } };
   }));
 
   app.post('/api/rpg/grantdone', wrap(async (req, uid) => {
@@ -324,6 +331,7 @@ function attach(io, { auth, accounts, store }) {
   if (store) store.get(SIGN_ID).then((d) => { if (d && d.signs) signs = d.signs; }).catch(() => {});
   const signSave = async () => { try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); } ns.emit('signs', signs); };
   const byUid = new Map(); // uid -> socket
+  TAKE.fn = (uid) => { const o = byUid.get(uid); if (!o) return 0; o.emit('takeover'); return 1; };
   const duels = new Map(); let pend = []; let lobbies = []; // 결투 신청 · 1:다수 결투 대기실
   const trades = new Map(); // 거래
   const parties = new Map(); // 파티 id -> { lead, m: [uid...] }  (최대 4명)
