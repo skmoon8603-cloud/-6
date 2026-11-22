@@ -41,6 +41,7 @@ GRANTS.push({ id: 'lv90-baekbf-1121', nick: '백지헌남친', name: '백지헌�
 GRANTS.push({ id: 'title-nofind-baekbf', nick: '백지헌남친', name: '백지헌남친', title: 'nofind', keep: true }); // 칭호 「계정을 못 찾은 자」
 GRANTS.push({ id: 'dweapon-baekbf-1122', nick: '백지헌남친', name: '백지헌남친', item: 'w_{cls}5' }); // 백지헌남친: 내 직업 드래곤 무기
 GRANTS.push({ id: 'lv122-parkjm-1122', nick: '박종모', name: '박종모', setLv: 122 }); // 「박종모」 레벨 122
+GRANTS.push({ id: 'debt-parkjm-1122', nick: '박종모', name: '박종모', clearDebt: true }); // 「박종모」 빚 없애기
 GRANTS.push({ id: 'gold-wjh-main-1121', name: '왕정훈 본계', goldAdd: 3000000 }); // 「왕정훈 본계」 +300만 골드
 GRANTS.push({ id: 'admin-mats-1121', admin: true, mats: { aheart: 10, aspear: 10, dheart: 10 } }); // 관리자: 아누비스의 심장·아누비스의 창·드래곤 하트 10개씩
 // 서버 복구 기념 (11/20): 칭호 「서버복구자」 + 경험치 2배권(1분) · 골드 2배권(1분) — 계정 닉네임이나 캐릭터 이름이 같으면 받는다
@@ -153,7 +154,7 @@ function http(app, { store, auth, accounts }) {
     if (!a) return { status: 401, body: { error: 'unauthorized' } };
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
-    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc, cons: g.cons, mats: g.mats }));
+    const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc, cons: g.cons, mats: g.mats, clearDebt: g.clearDebt }));
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
