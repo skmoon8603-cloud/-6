@@ -506,7 +506,7 @@ function attach(io, { auth, accounts, store }) {
       const sumDps = list.reduce((a, c) => a + c.dps, 0), avgHp = list.reduce((a, c) => a + c.hp, 0) / list.length, avgDef = list.reduce((a, c) => a + c.def, 0) / list.length, pw = list.reduce((a, c) => a + c.p, 0);
       // 보통은 못 이기게: 4분(광폭화 전) 동안 예상 피해의 1.3배 체력, 한 대에 체력의 35%쯤 깎는 공격력
       const k = 'raid' + Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, 'x');
-      const go = { k, p: Math.round(pw), hp: Math.round(sumDps * 240 * 1.3), atk: Math.round(avgHp * 0.35 + avgDef * 0.6), def: Math.round(60 + pw / 400) };
+      const go = { k, p: Math.round(pw), hp: Math.round(sumDps * 240 * 1.3 * 0.25), atk: Math.round((avgHp * 0.35 + avgDef * 0.6) * 0.5), /* 체력 75%↓ · 공격력 50%↓ */ def: Math.round(60 + pw / 400) };
       for (const q of ss) q.emit('raid:go', go);
     });
     // 거래
