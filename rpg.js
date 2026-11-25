@@ -8,7 +8,7 @@
  */
 const PAGES = (process.env.RPG_PAGES || 'https://skmoon8603-cloud.github.io/dobak-rpg/').replace(/\/*$/, '/');
 const ORIGINS = (process.env.RPG_ORIGINS || 'https://skmoon8603-cloud.github.io').split(',').map((s) => s.trim()).filter(Boolean);
-const MAX_SAVE = 24000;
+const MAX_SAVE = 600000; // 예전 24000 은 가방이 큰 캐릭터의 저장을 조용히 거절해서 레벨이 되돌아갔다
 const ADMIN_ID = process.env.ADMIN_ID || 'u-skmoon'; // 관리자 계정 (RPG에서 관리자 보상을 받는다)
 const docId = (uid) => '__rpg:' + uid;
 const REPORT_ID = '__rpgreports';

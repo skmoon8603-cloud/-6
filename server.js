@@ -36,6 +36,7 @@ app.use(require('compression')()); // 데이터 전송량 줄이기 (HTML·JS·J
 app.use((req, res, next) => { if (/\.(mp3|jpg|png)$/.test(req.path)) { const sh = res.setHeader.bind(res); res.setHeader = (k, v) => sh(k, /^cache-control$/i.test(k) ? 'public, max-age=604800' : v); res.setHeader('Cache-Control', 'public, max-age=604800'); } next(); });
 app.set('trust proxy', 1); // Render 등 프록시 뒤에서 실제 IP 사용
 app.disable('x-powered-by');
+app.use('/api/rpg/save', express.json({ limit: '1mb' })); // 도박 RPG 저장은 커질 수 있다 (가방이 큰 고레벨 캐릭터)
 app.use(express.json({ limit: '32kb' }));
 
 app.use((req, res, next) => {
