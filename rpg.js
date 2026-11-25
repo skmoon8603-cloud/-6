@@ -415,6 +415,7 @@ function attach(io, { auth, accounts, store }) {
         if (!hostOk(room) || byUid.get(hosts.get(room)).data.idle) { const o = byUid.get(hosts.get(room)); if (o && o !== socket && o.data.room === room) o.emit('host', { m: map, h: 0 }); hosts.set(room, uid); }
         socket.emit('host', { m: map, h: hosts.get(room) === uid ? 1 : 0, bd: bd(room) });
       }
+      socket.data.pk = d.pk ? 1 : 0;
       socket.data.p = [
         uid, cleanName(d.n) || socket.data.nick, word(d.r), word(d.c), word(d.j), Math.round(num(d.l, 1, 999)),
         Math.round(num(d.x, 0, 200000)), Math.round(num(d.y, 0, 200000)), d.f < 0 ? -1 : 1, d.a ? 1 : 0, d.w ? 1 : 0, itemId(d.wp), itemId(d.ar), d.t === 'admin' && uid !== ADMIN_ID ? '' : itemId(d.t), // 칭호 (관리자 칭호는 관리자만)
@@ -422,7 +423,8 @@ function attach(io, { auth, accounts, store }) {
         VEH_OK.has(d.v) ? d.v : '', socket.data.ride ? 1 : 0, // 탈것 · 다른 사람 뒤에 탔는지
         Math.round(num(d.hd, -7, 7) * 100) / 100, // 픽시 진행 방향 (도는 모습)
         Array.isArray(d.sp) ? d.sp.slice(0, 5).map((a) => Array.isArray(a) ? [Math.round(num(a[0], 0, 9)), Math.round(num(a[1], 0, 200000)), Math.round(num(a[2], 0, 200000))] : [0, 0, 0]) : [], // 정령술사의 정령
-        Math.round(num(d.wl, 0, 15)), // 무기 강화 단계 (5강마다 무기가 커진다)
+        Math.round(num(d.wl, 0, 20)), // 무기 강화 단계 (5강마다 무기가 커진다)
+        d.pk ? 1 : 0, // PvP 켬
       ];
       // 운전자가 탈것에서 내리거나 좌석이 줄면 뒤에 탄 사람을 내리게 한다
       { const seats = SEATS[socket.data.p[15]] || 0; let n = 0; for (const q of byUid.values()) if (q.data.ride === uid) { if (++n > seats) { q.data.ride = null; q.emit('ride:off', { why: seats ? '자리가 없어요' : '운전자가 내렸어요' }); } } }
@@ -567,7 +569,7 @@ function attach(io, { auth, accounts, store }) {
       try { if (JSON.stringify(d).length > (d.k === 'sk' ? 7000 : 2500)) return; } catch (e) { return; }
       if (d.k === 'hit') { if (amHost()) return; const h = byUid.get(hosts.get(m)); if (h && h.data.room === m) { d.from = uid; h.emit('ev', d); } }
       else if (d.k === 'kill' || d.k === 'ep') { if (amHost()) { if (d.k === 'kill' && d.bs) bossDead.set(m, Date.now()); socket.to('m:' + m).emit('ev', d); } }
-      else if (d.k === 'pvh') { if (!m.startsWith('arena')) return; const t = byUid.get(String(d.to)); if (t && t.data.room === m) { d.from = uid; t.emit('ev', d); } } // 결투: 상대에게 피해
+      else if (d.k === 'pvh') { const t = byUid.get(String(d.to)); if (!m.startsWith('arena') && !(socket.data.pk && t && t.data.pk)) return; if (t && t.data.room === m) { d.from = uid; t.emit('ev', d); } } // 결투: 상대에게 피해
       else if (d.k === 'pvend') { if (m.startsWith('arena')) socket.to('m:' + m).emit('ev', { k: 'pvend', from: uid }); } // 결투: 내가 졌다
       else if (d.k === 'sk') { d.from = uid; socket.to('m:' + m).volatile.emit('ev', d); } // 다른 사람에게 내 스킬 연출 보여주기
       else if (d.k === 'bf') { if (amHost()) socket.to('m:' + m).emit('ev', d); } // 보스 예고 표시·피하기 버튼을 같은 맵 사람들에게
