@@ -332,6 +332,7 @@ function attach(io, { auth, accounts, store }) {
   if (store) store.get(SIGN_ID).then((d) => { if (d && d.signs) signs = d.signs; }).catch(() => {});
   const signSave = async () => { try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); } ns.emit('signs', signs); };
   const byUid = new Map(); // uid -> socket
+  const TODAY = { day: '', m: new Map() }; // 오늘(한국 시간) 접속한 계정 uid -> 닉네임
   TAKE.fn = (uid) => { const o = byUid.get(uid); if (!o) return 0; o.emit('takeover'); return 1; };
   const duels = new Map(); let pend = []; let lobbies = []; // 결투 신청 · 1:다수 결투 대기실
   const trades = new Map(); // 거래
@@ -377,6 +378,7 @@ function attach(io, { auth, accounts, store }) {
     const old = byUid.get(uid);
     if (old && old !== socket) { old.emit('kicked'); old.disconnect(true); } // 같은 계정은 한 곳에서만
     byUid.set(uid, socket);
+    { const day = kstDay(); if (TODAY.day !== day) { TODAY.day = day; TODAY.m.clear(); } TODAY.m.set(uid, socket.data.nick || ''); }
     socket.data.p = null; socket.data.map = ''; socket.data.room = '';
     { const c = chCount(); let ch = 0; for (let i = 2; i <= CH_N; i++) if (c[i] < CH_MAX) { ch = i; break; } // 1번 서버는 비밀번호가 있어야 들어간다
       if (!ch) { socket.emit('full'); setTimeout(() => socket.disconnect(true), 300); return; }
@@ -735,6 +737,14 @@ function attach(io, { auth, accounts, store }) {
       const adm = byUid.get(ADMIN_ID); if (adm) adm.emit('tr:msg', `🚩 신고: ${rec.byName} → ${rec.toName} (${why})`);
     });
     // 관리자: 신고 목록 · 처리 · 채팅 금지 · 정지
+    // 관리자: 오늘 접속한 사람 수와 지금 플레이 중인 사람 목록
+    socket.on('adm:who', () => {
+      if (uid !== ADMIN_ID) return;
+      const day = kstDay(); if (TODAY.day !== day) { TODAY.day = day; TODAY.m.clear(); }
+      const online = []; for (const q of byUid.values()) { const p = q.data.p; online.push({ nick: q.data.nick || '', name: p ? p[1] : '', lv: p ? p[5] : 0, cls: p ? p[3] : '', ch: q.data.ch || 0, map: q.data.map || '', idle: q.data.idle ? 1 : 0 }); }
+      online.sort((a, b) => b.lv - a.lv);
+      socket.emit('adm:who', { today: TODAY.m.size, todayList: [...TODAY.m.values()].slice(-300), online });
+    });
     socket.on('adm:reps', async () => {
       if (uid !== ADMIN_ID) return; await sancLoad(store);
       const d = await store.get(REPORT_ID); const list = ((d && d.list) || []).slice(0, 100);
