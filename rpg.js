@@ -118,6 +118,7 @@ async function linkByNick(store, nick) {
 }
 
 /** REST + 화면 제공 */
+const GIFT = { fn: null }; // 관리자 지급을 접속 중인 사람에게 바로 보내기 (attach 에서 채움)
 const TAKE = { fn: null }; // 다른 기기에 '저장하고 멈춰' 보내기 (attach 에서 채움)
 function http(app, { store, auth, accounts }) {
   // 다른 주소(GitHub Pages)에서 열어도 로그인·저장이 되도록 허용 (쿠키가 아닌 토큰 방식이라 안전)
@@ -155,12 +156,21 @@ function http(app, { store, auth, accounts }) {
     const d = await store.get(docId(uid));
     const got = (await store.get(grantDoc(uid))) || { done: [] };
     const grants = GRANTS.filter((g) => ((g.admin && uid === ADMIN_ID) || (g.nick && g.nick === a.nick) || (g.name && d && d.save && d.save.name === g.name)) && !got.done.includes(g.id) && (!g.requires || got.done.includes(g.requires))).map((g) => ({ id: g.id, lv: g.lv, title: g.title, setLv: g.setLv, lvAdd: g.lvAdd, sp: g.sp, ap: g.ap, spDown: g.spDown, apDown: g.apDown, goldMul: g.goldMul, goldAdd: g.goldAdd, item: g.item, setCls: g.setCls, recalc: g.recalc, cons: g.cons, mats: g.mats, clearDebt: g.clearDebt }));
+    for (const g of (got.gifts || [])) if (!got.done.includes(g.id)) grants.push(g); // 관리자 탭에서 보낸 지급
     return { body: { id: uid, admin: uid === ADMIN_ID, grants, nick: a.nick, save: d ? d.save : null, t: d ? d.t : 0 } };
   }));
   app.post('/api/rpg/save', wrap(async (req, uid) => {
     const save = req.body && req.body.save;
     if (!save || typeof save !== 'object' || Array.isArray(save)) return { status: 400, body: { error: 'bad_save' } };
     if (JSON.stringify(save).length > MAX_SAVE) return { status: 413, body: { error: 'too_big' } };
+    if (uid !== ADMIN_ID) { // 조작 방지: 말이 안 되는 값은 정상 범위로 되돌린다
+      const fix = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.max(lo, Math.min(hi, Math.round(+v))) : d);
+      save.lv = fix(save.lv, 1, 200, 1); save.gold = fix(save.gold, 0, 1e11, 0);
+      if (save.bank && typeof save.bank === 'object') save.bank.dep = fix(save.bank.dep, 0, 1e10, 0);
+      if (save.eq && typeof save.eq === 'object') for (const k of Object.keys(save.eq)) { const e = save.eq[k]; if (e && typeof e === 'object') e.plus = fix(e.plus, 0, 20, 0); }
+      if (Array.isArray(save.bag)) for (const e of save.bag) if (e && typeof e === 'object') e.plus = fix(e.plus, 0, 20, 0);
+      if (save.flags && typeof save.flags === 'object') delete save.flags.admin;
+    }
     if (!(await accounts.get(uid))) return { status: 401, body: { error: 'unauthorized' } };
     const id = docId(uid), t = Date.now();
     // 다른 기기가 더 최근에 저장했으면 거절한다 (예전 데이터가 새 데이터를 덮어쓰지 않게)
@@ -200,6 +210,27 @@ function http(app, { store, auth, accounts }) {
     const q = String((req.query && req.query.q) || '').slice(0, 40);
     return { body: { list: await accounts.adminFind(q) } };
   }));
+  // 관리자: 유저에게 레벨·골드·장비·아이템 지급 (접속 중이면 바로, 아니면 다음 접속 때)
+  app.post('/api/rpg/admin/give', wrap(async (req, uid) => {
+    if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
+    const b = req.body || {};
+    const user = String(b.user || '').normalize('NFC').trim().toLowerCase();
+    if (!user) return { status: 400, body: { error: 'bad_user' } };
+    const to = 'u-' + user;
+    if (!(await accounts.get(to))) return { status: 404, body: { error: 'no_user' } };
+    const id = 'gift-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const g = { id };
+    const lv = Math.round(+b.setLv || 0); if (lv >= 1 && lv <= 200) { g.setLv = lv; g.recalc = true; }
+    const gold = Math.round(+b.goldAdd || 0); if (gold > 0) g.goldAdd = Math.min(gold, 1e10);
+    if (typeof b.item === 'string' && /^[a-z0-9_{}]{1,30}$/.test(b.item)) g.item = b.item;
+    const cnt = (o) => { if (!o || typeof o !== 'object' || Array.isArray(o)) return null; const r = {}; let n = 0; for (const k of Object.keys(o).slice(0, 10)) if (/^[a-z0-9]{1,20}$/.test(k)) { const v = Math.round(+o[k] || 0); if (v > 0) { r[k] = Math.min(v, 999); n++; } } return n ? r : null; };
+    const c = cnt(b.cons); if (c) g.cons = c; const m = cnt(b.mats); if (m) g.mats = m;
+    if (Object.keys(g).length < 2) return { status: 400, body: { error: 'empty' } };
+    const gd = grantDoc(to);
+    await store.txn([gd], (mm) => { const d = mm[gd] || { id: gd, done: [] }; d.gifts = (d.gifts || []).concat([g]).slice(-30); mm[gd] = d; });
+    const live = GIFT.fn ? GIFT.fn(to, g) : 0;
+    return { body: { ok: true, live } };
+  }));
   app.post('/api/rpg/admin/resetpw', wrap(async (req, uid) => {
     if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
     const user = String((req.body && req.body.user) || '').normalize('NFC').trim().toLowerCase();
@@ -218,9 +249,10 @@ function http(app, { store, auth, accounts }) {
 
   app.post('/api/rpg/grantdone', wrap(async (req, uid) => {
     const gid = String((req.body && req.body.id) || '');
-    if (!GRANTS.some((g) => g.id === gid && !g.keep)) return { status: 400, body: { error: 'bad_grant' } };
+    const gift = /^gift-[a-z0-9]{6,20}$/.test(gid);
+    if (!gift && !GRANTS.some((g) => g.id === gid && !g.keep)) return { status: 400, body: { error: 'bad_grant' } };
     const id = grantDoc(uid);
-    await store.txn([id], (m) => { const d = m[id] || { id, done: [] }; if (!d.done.includes(gid)) d.done.push(gid); m[id] = d; });
+    await store.txn([id], (m) => { const d = m[id] || { id, done: [] }; if (gift) { d.gifts = (d.gifts || []).filter((g) => g.id !== gid); d.done = d.done.filter((x) => !/^gift-/.test(x)); } else if (!d.done.includes(gid)) d.done.push(gid); m[id] = d; });
     return { body: { ok: true } };
   }));
 
@@ -333,6 +365,7 @@ function attach(io, { auth, accounts, store }) {
   const signSave = async () => { try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); } ns.emit('signs', signs); };
   const byUid = new Map(); // uid -> socket
   const TODAY = { day: '', m: new Map() }; // 오늘(한국 시간) 접속한 계정 uid -> 닉네임
+  GIFT.fn = (uid, g) => { const o = byUid.get(uid); if (!o) return 0; o.emit('gift', g); return 1; };
   TAKE.fn = (uid) => { const o = byUid.get(uid); if (!o) return 0; o.emit('takeover'); return 1; };
   const duels = new Map(); let pend = []; let lobbies = []; // 결투 신청 · 1:다수 결투 대기실
   const trades = new Map(); // 거래
