@@ -223,6 +223,8 @@ function http(app, { store, auth, accounts }) {
     const lv = Math.round(+b.setLv || 0); if (lv >= 1 && lv <= 200) { g.setLv = lv; g.recalc = true; }
     const gold = Math.round(+b.goldAdd || 0); if (gold > 0) g.goldAdd = Math.min(gold, 1e10);
     if (typeof b.item === 'string' && /^[a-z0-9_{}]{1,30}$/.test(b.item)) g.item = b.item;
+    if (Array.isArray(b.items)) { const L = b.items.filter((x) => typeof x === 'string' && /^[a-z0-9_{}]{1,30}$/.test(x)).slice(0, 20); if (L.length) g.items = L; }
+    if (Array.isArray(b.veh)) { const L = b.veh.filter((x) => typeof x === 'string' && /^[a-z0-9]{1,20}$/.test(x)).slice(0, 10); if (L.length) g.veh = L; }
     const cnt = (o) => { if (!o || typeof o !== 'object' || Array.isArray(o)) return null; const r = {}; let n = 0; for (const k of Object.keys(o).slice(0, 10)) if (/^[a-z0-9]{1,20}$/.test(k)) { const v = Math.round(+o[k] || 0); if (v > 0) { r[k] = Math.min(v, 999); n++; } } return n ? r : null; };
     const c = cnt(b.cons); if (c) g.cons = c; const m = cnt(b.mats); if (m) g.mats = m;
     if (Object.keys(g).length < 2) return { status: 400, body: { error: 'empty' } };
@@ -230,6 +232,15 @@ function http(app, { store, auth, accounts }) {
     await store.txn([gd], (mm) => { const d = mm[gd] || { id: gd, done: [] }; d.gifts = (d.gifts || []).concat([g]).slice(-30); mm[gd] = d; });
     const live = GIFT.fn ? GIFT.fn(to, g) : 0;
     return { body: { ok: true, live } };
+  }));
+  // 관리자: 유저 인벤토리 보기 (마지막으로 저장된 상태)
+  app.get('/api/rpg/admin/inv', wrap(async (req, uid) => {
+    if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
+    const user = String((req.query && req.query.user) || '').normalize('NFC').trim().toLowerCase();
+    const to = 'u-' + user; const d = await store.get(docId(to)); const s = d && d.save;
+    if (!s) return { body: { none: 1 } };
+    const pick = { name: s.name, lv: s.lv, cls: s.cls, job: s.job, job3: s.job3, gold: s.gold, bank: s.bank ? { dep: s.bank.dep, loan: s.bank.loan } : null, eq: s.eq, bag: s.bag, pots: s.pots, mats: s.mats, veh: s.veh, ride: s.ride, quick: s.quick };
+    return { body: { save: pick, t: d.t || 0, online: !!(GIFT.on && GIFT.on(to)) } };
   }));
   app.post('/api/rpg/admin/resetpw', wrap(async (req, uid) => {
     if (uid !== ADMIN_ID) return { status: 403, body: { error: 'forbidden' } };
@@ -365,6 +376,7 @@ function attach(io, { auth, accounts, store }) {
   const signSave = async () => { try { if (store) await store.txn([SIGN_ID], (m) => { m[SIGN_ID] = { id: SIGN_ID, signs }; }); } catch (e) { console.error('[rpg] 표지판 저장 실패', e.message); } ns.emit('signs', signs); };
   const byUid = new Map(); // uid -> socket
   const TODAY = { day: '', m: new Map() }; // 오늘(한국 시간) 접속한 계정 uid -> 닉네임
+  GIFT.on = (uid) => byUid.has(uid);
   GIFT.fn = (uid, g) => { const o = byUid.get(uid); if (!o) return 0; o.emit('gift', g); return 1; };
   TAKE.fn = (uid) => { const o = byUid.get(uid); if (!o) return 0; o.emit('takeover'); return 1; };
   const duels = new Map(); let pend = []; let lobbies = []; // 결투 신청 · 1:다수 결투 대기실
