@@ -471,6 +471,7 @@ function attach(io, { auth, accounts, store }) {
         Array.isArray(d.sp) ? d.sp.slice(0, 5).map((a) => Array.isArray(a) ? [Math.round(num(a[0], 0, 9)), Math.round(num(a[1], 0, 200000)), Math.round(num(a[2], 0, 200000))] : [0, 0, 0]) : [], // 정령술사의 정령
         Math.round(num(d.wl, 0, 20)), // 무기 강화 단계 (5강마다 무기가 커진다)
         socket.data.pk, // PvP 켬
+        Array.isArray(d.pt) && d.pt[0] ? [word(d.pt[0]), Math.round(num(d.pt[1], 0, 20)), d.pt[2] ? 1 : 0, Math.round(num(d.pt[3], 0, 200000)), Math.round(num(d.pt[4], 0, 200000))] : 0, // 보스 펫 [종류, 레벨, 탔는지, x, y]
       ];
       // 운전자가 탈것에서 내리거나 좌석이 줄면 뒤에 탄 사람을 내리게 한다
       { const seats = SEATS[socket.data.p[15]] || 0; let n = 0; for (const q of byUid.values()) if (q.data.ride === uid) { if (++n > seats) { q.data.ride = null; q.emit('ride:off', { why: seats ? '자리가 없어요' : '운전자가 내렸어요' }); } } }
