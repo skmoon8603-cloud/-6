@@ -281,15 +281,36 @@ function http(app, { store, auth, accounts }) {
         for (const d of await store.listAll()) {
           if (!d || typeof d.id !== 'string' || !d.id.startsWith('__rpg:') || !d.save || typeof d.save !== 'object') continue;
           const h = d.save.home; if (!h || typeof h !== 'object' || !HOUSE_T.has(h.t)) continue;
+          if (!d.save.flags || !d.save.flags.homeRef1) continue; // 환불 전(옛 규칙) 집은 주인이 접속하면 사라지므로 빼 둔다
           const farm = Array.isArray(d.save.farm) ? d.save.farm.slice(0, 80).map((f) => (f && CROP_T.has(f.c) ? [f.c, Math.round(num(f.t, 0, 1e14)), f.w === 0 ? 0 : 1] : 0)) : [];
           out.push({ u: String(d.uid || d.id).slice(0, 40), n: cleanName(d.save.name) || '모험가', t: h.t, x: Math.round(num(h.x, 0, 200000)), y: Math.round(num(h.y, 0, 200000)), f: farm });
         }
+        for (const [u, c] of claims) if (Date.now() - c.t < 180000 && !out.some((o) => o.u === u)) out.push({ u, n: c.n, t: 'tent', x: c.x, y: c.y, f: [] });
         homes = { t: Date.now(), data: out };
       }
       res.json({ now: Date.now(), list: homes.data });
     } catch (e) { res.status(500).json({ error: 'server' }); }
   });
-  // 순위: 돈·레벨 상위 10명 (20초 캐시, 로그인 없이 볼 수 있다)
+  // 집 자리 잡기: 서버가 최신 저장 + 방금 잡은 자리까지 보고 겹치는지 판정한다 (동시에 지어도 겹치지 않게)
+  const claims = new Map(); // uid → { x, y, n, t }
+  const homeRect = (x, y) => ({ x0: x - 158 - 16, x1: x + 158 + 30 + 6 * 32 + 16, y0: y - 208 - 16, y1: y + 9 * 32 }); // 대저택 + 밭 60평 크기
+  app.post('/api/rpg/home/claim', wrap(async (req, uid) => {
+    const b = req.body || {};
+    const x = Math.round(num(b.x, 0, 200000)), y = Math.round(num(b.y, 0, 200000)), n = cleanName(b.n) || '모험가';
+    if (limited('hc:' + uid, 20, 60000)) return { status: 429, body: { error: 'too_many_requests' } };
+    const others = [];
+    for (const d of await store.listAll()) {
+      if (!d || typeof d.id !== 'string' || !d.id.startsWith('__rpg:') || d.uid === uid || !d.save || typeof d.save !== 'object') continue;
+      const h = d.save.home; if (!h || typeof h !== 'object' || !HOUSE_T.has(h.t) || !d.save.flags || !d.save.flags.homeRef1) continue;
+      others.push({ x: num(h.x, 0, 200000), y: num(h.y, 0, 200000), n: cleanName(d.save.name) || '모험가', u: d.uid });
+    }
+    const now = Date.now();
+    for (const [u, c] of claims) { if (now - c.t > 180000) { claims.delete(u); continue; } if (u !== uid) { const i = others.findIndex((o) => o.u === u); if (i >= 0) others.splice(i, 1); others.push(c); } }
+    const a = homeRect(x, y);
+    for (const o of others) { const r = homeRect(o.x, o.y); if (a.x0 < r.x1 && r.x0 < a.x1 && a.y0 < r.y1 && r.y0 < a.y1) return { status: 409, body: { error: 'clash', n: o.n } }; }
+    claims.set(uid, { x, y, n, t: now, u: uid }); homes.data = null; // 다른 사람 목록에도 바로 보이게
+    return { body: { ok: true } };
+  }));
   let rank = { t: 0, data: null };
   app.get('/api/rpg/rank', async (req, res) => {
     try {
