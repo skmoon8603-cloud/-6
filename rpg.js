@@ -281,7 +281,7 @@ function http(app, { store, auth, accounts }) {
         for (const d of await store.listAll()) {
           if (!d || typeof d.id !== 'string' || !d.id.startsWith('__rpg:') || !d.save || typeof d.save !== 'object') continue;
           const h = d.save.home; if (!h || typeof h !== 'object' || !HOUSE_T.has(h.t)) continue;
-          const farm = Array.isArray(d.save.farm) ? d.save.farm.slice(0, 80).map((f) => (f && CROP_T.has(f.c) ? [f.c, Math.round(num(f.t, 0, 1e14))] : 0)) : [];
+          const farm = Array.isArray(d.save.farm) ? d.save.farm.slice(0, 80).map((f) => (f && CROP_T.has(f.c) ? [f.c, Math.round(num(f.t, 0, 1e14)), f.w === 0 ? 0 : 1] : 0)) : [];
           out.push({ u: String(d.uid || d.id).slice(0, 40), n: cleanName(d.save.name) || '모험가', t: h.t, x: Math.round(num(h.x, 0, 200000)), y: Math.round(num(h.y, 0, 200000)), f: farm });
         }
         homes = { t: Date.now(), data: out };
