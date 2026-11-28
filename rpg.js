@@ -696,6 +696,7 @@ function attach(io, { auth, accounts, store }) {
       const t = byUid.get(String((d && d.to) || ''));
       if (!t || t === socket || t.data.room !== socket.data.room) return socket.emit('tr:msg', '상대가 근처에 없어요');
       for (const T of trades.values()) if ([T.a, T.b].includes(uid) || [T.a, T.b].includes(t.data.uid)) return socket.emit('tr:msg', '이미 거래 중이에요');
+      { const la = socket.data.p && socket.data.p[5], lb = t.data.p && t.data.p[5]; if (la && lb && Math.abs(la - lb) >= 60) return socket.emit('tr:msg', '레벨 차이가 60 이상이면 거래할 수 없어요'); }
       const id = Math.random().toString(36).slice(2, 9);
       trades.set(id, { a: uid, b: t.data.uid, off: {}, lk: new Set(), ok: false, t: Date.now() });
       t.emit('tr:ask', { id, from: uid, op: (socket.data.p && socket.data.p[1]) || socket.data.nick });
