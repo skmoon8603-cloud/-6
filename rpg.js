@@ -268,6 +268,27 @@ function http(app, { store, auth, accounts }) {
     return { body: { ok: true } };
   }));
 
+  // 끝없는 평야의 집·밭: 모든 캐릭터 저장에서 모아 보여준다 (10초 캐시) — 주인이 접속하지 않아도 보인다
+  const HOUSE_T = new Set(['tent', 'container', 'cabin', 'small', 'mansion', 'grand']);
+  const CROP_T = new Set(['potato', 'carrot', 'tomato', 'corn', 'strawberry', 'watermelon', 'pumpkin', 'goldapple']);
+  let homes = { t: 0, data: null };
+  app.get('/api/rpg/homes', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      if (limited('hm:' + req.ip, 30, 10000)) return res.status(429).json({ error: 'too_many_requests' });
+      if (!homes.data || Date.now() - homes.t > 10000) {
+        const out = [];
+        for (const d of await store.listAll()) {
+          if (!d || typeof d.id !== 'string' || !d.id.startsWith('__rpg:') || !d.save || typeof d.save !== 'object') continue;
+          const h = d.save.home; if (!h || typeof h !== 'object' || !HOUSE_T.has(h.t)) continue;
+          const farm = Array.isArray(d.save.farm) ? d.save.farm.slice(0, 80).map((f) => (f && CROP_T.has(f.c) ? [f.c, Math.round(num(f.t, 0, 1e14))] : 0)) : [];
+          out.push({ u: String(d.uid || d.id).slice(0, 40), n: cleanName(d.save.name) || '모험가', t: h.t, x: Math.round(num(h.x, 0, 200000)), y: Math.round(num(h.y, 0, 200000)), f: farm });
+        }
+        homes = { t: Date.now(), data: out };
+      }
+      res.json({ now: Date.now(), list: homes.data });
+    } catch (e) { res.status(500).json({ error: 'server' }); }
+  });
   // 순위: 돈·레벨 상위 10명 (20초 캐시, 로그인 없이 볼 수 있다)
   let rank = { t: 0, data: null };
   app.get('/api/rpg/rank', async (req, res) => {
