@@ -42,6 +42,7 @@ GRANTS.push({ id: 'lv90-baekbf-1121', nick: '백지헌남친', name: '백지헌�
 GRANTS.push({ id: 'title-nofind-baekbf', nick: '백지헌남친', name: '백지헌남친', title: 'nofind', keep: true }); // 칭호 「계정을 못 찾은 자」
 GRANTS.push({ id: 'dweapon-baekbf-1122', nick: '백지헌남친', name: '백지헌남친', item: 'w_{cls}5' }); // 백지헌남친: 내 직업 드래곤 무기
 GRANTS.push({ id: 'lv122-parkjm-1122', nick: '박종모', name: '박종모', setLv: 122 }); // 「박종모」 레벨 122
+GRANTS.push({ id: 'debt-beomgyu-1128', nick: '뉴비도우미-범규', name: '뉴비도우미-범규', clearDebt: true }); // 「뉴비도우미-범규」 빚 없애기
 GRANTS.push({ id: 'debt-parkjm-1122', nick: '박종모', name: '박종모', clearDebt: true }); // 「박종모」 빚 없애기
 GRANTS.push({ id: 'gold-wjh-main-1121', name: '왕정훈 본계', goldAdd: 3000000 }); // 「왕정훈 본계」 +300만 골드
 GRANTS.push({ id: 'admin-mats-1121', admin: true, mats: { aheart: 10, aspear: 10, dheart: 10 } }); // 관리자: 아누비스의 심장·아누비스의 창·드래곤 하트 10개씩
@@ -311,6 +312,91 @@ function http(app, { store, auth, accounts }) {
     claims.set(uid, { x, y, n, t: now, u: uid }); homes.data = null; // 다른 사람 목록에도 바로 보이게
     return { body: { ok: true } };
   }));
+  // ===== 경매장 =====
+  // 물건은 올릴 때 서버가 맡고(올린 사람 가방에서 빠짐), 입찰한 돈도 그때 빠진다.
+  // 더 높은 입찰이 오면 앞사람 돈은 돌려주고, 끝나면 낙찰자에게 물건·판 사람에게 돈(수수료 5%)을 지급으로 보낸다.
+  const AUC = '__auction', AUC_DUR = [60, 1200, 3600, 43200], AUC_FEE = 0.05, AUC_MAX = 10;
+  const sendGift = async (to, g) => {
+    g.id = 'gift-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const gd = grantDoc(to);
+    await store.txn([gd], (mm) => { const d = mm[gd] || { id: gd, done: [] }; d.gifts = (d.gifts || []).concat([g]).slice(-150); mm[gd] = d; });
+    if (GIFT.fn) GIFT.fn(to, g);
+  };
+  const aucItem = (it) => {
+    if (!it || typeof it !== 'object') return null;
+    const k = it.k, id = String(it.id || '');
+    if (!/^[a-z0-9_]{1,30}$/.test(id)) return null;
+    if (k === 'g') return { k, id, plus: Math.round(num(it.plus, 0, 20)), n: 1 };
+    if (k === 'm' || k === 'p') { const n = Math.round(num(it.n, 1, 1e6)); return n >= 1 ? { k, id, n } : null; }
+    return null;
+  };
+  const aucLoad = async () => { const d = await store.get(AUC); return d && Array.isArray(d.list) ? d.list : []; };
+  app.get('/api/rpg/auc', wrap(async () => ({ body: { now: Date.now(), list: await aucLoad() } })));
+  app.post('/api/rpg/auc/list', wrap(async (req, uid) => {
+    const b = req.body || {}; const it = aucItem(b.it); const dur = Math.round(+b.dur || 0); const start = Math.round(num(b.start, 1, 1e10));
+    if (!it || !AUC_DUR.includes(dur) || !(start >= 1)) return { status: 400, body: { error: 'bad' } };
+    if (limited('al:' + uid, 15, 60000)) return { status: 429, body: { error: 'too_many_requests' } };
+    let err = '', row = null;
+    await store.txn([AUC], (m) => {
+      const d = m[AUC] || { id: AUC, list: [], seq: 0 };
+      if (d.list.filter((x) => x.s === uid).length >= AUC_MAX) { err = 'max'; return; }
+      d.seq = (d.seq || 0) + 1;
+      row = { id: 'a' + d.seq.toString(36), s: uid, sn: cleanName(b.n) || '모험가', it, start, bid: 0, b: '', bn: '', end: Date.now() + dur * 1000 };
+      d.list.push(row); m[AUC] = d;
+    });
+    if (err) return { status: 409, body: { error: err } };
+    return { body: { ok: true, row } };
+  }));
+  app.post('/api/rpg/auc/bid', wrap(async (req, uid) => {
+    const b = req.body || {}; const id = String(b.id || ''); const amt = Math.round(num(b.amt, 1, 1e11));
+    if (limited('ab:' + uid, 30, 60000)) return { status: 429, body: { error: 'too_many_requests' } };
+    let err = '', prev = null, row = null;
+    await store.txn([AUC], (m) => {
+      const d = m[AUC]; const r = d && d.list.find((x) => x.id === id);
+      if (!r || r.end <= Date.now()) { err = 'gone'; return; }
+      if (r.s === uid) { err = 'self'; return; }
+      if (r.b === uid) { err = 'top'; return; }
+      const need = r.bid ? Math.ceil(r.bid * 1.05) : r.start;
+      if (amt < need) { err = 'low'; return; }
+      if (r.b) prev = { u: r.b, amt: r.bid };
+      r.bid = amt; r.b = uid; r.bn = cleanName(b.n) || '모험가';
+      if (r.end - Date.now() < 30000) r.end = Date.now() + 30000; // 끝나기 직전 입찰이면 30초 연장
+      row = r; m[AUC] = d;
+    });
+    if (err) return { status: 409, body: { error: err } };
+    if (prev) await sendGift(prev.u, { auc: { gold: prev.amt, msg: '더 높은 입찰이 들어와서 입찰금을 돌려받았어요' } });
+    return { body: { ok: true, row } };
+  }));
+  app.post('/api/rpg/auc/cancel', wrap(async (req, uid) => {
+    const id = String((req.body && req.body.id) || ''); let err = '', row = null;
+    await store.txn([AUC], (m) => {
+      const d = m[AUC]; const i = d ? d.list.findIndex((x) => x.id === id) : -1;
+      if (i < 0) { err = 'gone'; return; } const r = d.list[i];
+      if (r.s !== uid) { err = 'not_mine'; return; } if (r.b) { err = 'has_bid'; return; }
+      d.list.splice(i, 1); row = r; m[AUC] = d;
+    });
+    if (err) return { status: 409, body: { error: err } };
+    await sendGift(uid, { auc: { it: row.it, msg: '경매를 취소해서 물건을 돌려받았어요' } });
+    return { body: { ok: true } };
+  }));
+  // 끝난 경매 정산 (5초마다)
+  let aucBusy = false;
+  setInterval(async () => {
+    if (aucBusy) return; aucBusy = true;
+    try {
+      let done = [];
+      await store.txn([AUC], (m) => { const d = m[AUC]; if (!d || !d.list || !d.list.length) return; const now = Date.now(); done = d.list.filter((x) => x.end <= now); if (!done.length) return; d.list = d.list.filter((x) => x.end > now); m[AUC] = d; });
+      for (const r of done) {
+        if (r.b) {
+          await sendGift(r.b, { auc: { it: r.it, msg: '경매에서 낙찰받았어요!' } });
+          await sendGift(r.s, { auc: { gold: Math.floor(r.bid * (1 - AUC_FEE)), msg: `경매에 올린 물건이 ${r.bn} 님에게 팔렸어요 (수수료 5%)` } });
+        } else await sendGift(r.s, { auc: { it: r.it, msg: '아무도 입찰하지 않아서 물건을 돌려받았어요' } });
+      }
+    } catch (e) { console.error('[rpg] 경매 정산 실패', e.message); }
+    aucBusy = false;
+  }, 5000);
+
+  // 순위: 돈·레벨 상위 10명 (20초 캐시, 로그인 없이 볼 수 있다)
   let rank = { t: 0, data: null };
   app.get('/api/rpg/rank', async (req, res) => {
     try {
